@@ -84,6 +84,8 @@ export interface GameState {
   handChoices: CardName[];
   handChoicesOrder: number[];
   keptCard: CardName | null;
+  removedCard: CardName | null; // 新增：开局移出的牌
+  targetTokens: number;        // 新增：获胜所需积分，默认4
 }
 
 export interface GameAction {

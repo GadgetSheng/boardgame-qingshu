@@ -56,21 +56,24 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
     handChoices: [],
     handChoicesOrder: [],
     keptCard: null,
+    removedCard: null,
+    targetTokens: 4,
   };
 }
 
 export function drawCard(state: GameState): GameState {
-  if (state.deck.length === 0) {
-    const newState = { ...state, players: [...state.players] };
-    const currentPlayer = newState.players[state.currentPlayerIndex];
-    currentPlayer.hand = null;
-    return newState;
-  }
-
   const newState = { ...state, players: [...state.players] };
   const currentPlayer = newState.players[state.currentPlayerIndex];
-  const drawnCard = newState.deck.pop()!;
 
+  // Bug修复：deck空时应该跳过抽牌阶段，不改变hand
+  if (newState.deck.length === 0) {
+    return {
+      ...newState,
+      message: `${currentPlayer.name}无法抽牌（牌堆空），出牌阶段`,
+    };
+  }
+
+  const drawnCard = newState.deck.pop()!;
   const choices: CardName[] = [currentPlayer.hand, drawnCard].filter((c): c is CardName => c !== null);
 
   return {
@@ -87,10 +90,18 @@ export function drawTwoCards(state: GameState): GameState {
   const newState = { ...state, players: [...state.players] };
   const currentPlayer = newState.players[state.currentPlayerIndex];
 
-  const draw1 = newState.deck.length > 0 ? newState.deck.pop()! : null;
+  // deck空时跳过抽牌
+  if (newState.deck.length === 0) {
+    return {
+      ...newState,
+      message: `${currentPlayer.name}无法抽牌（牌堆空），出牌阶段`,
+    };
+  }
+
+  const draw1 = newState.deck.pop()!;
   const draw2 = newState.deck.length > 0 ? newState.deck.pop()! : null;
 
-  const choices: CardName[] = [draw1, draw2].filter((c): c is CardName => c !== null);
+  const choices: CardName[] = [currentPlayer.hand, draw1, draw2].filter((c): c is CardName => c !== null);
 
   return {
     ...newState,
