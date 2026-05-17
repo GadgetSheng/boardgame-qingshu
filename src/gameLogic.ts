@@ -37,6 +37,7 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
   }));
 
   const deck = shuffle(createDeck());
+  const removedCard = deck.pop()!;
 
   for (const player of players) {
     player.hand = deck.pop()!;
@@ -56,7 +57,7 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
     handChoices: [],
     handChoicesOrder: [],
     keptCard: null,
-    removedCard: null,
+    removedCard,
     targetTokens: 4,
   };
 }
