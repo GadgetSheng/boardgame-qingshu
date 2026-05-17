@@ -98,7 +98,7 @@ export function drawTwoCards(state: GameState): GameState {
     };
   }
 
-  const draw1 = newState.deck.pop()!;
+  const draw1 = newState.deck.length > 0 ? newState.deck.pop()! : null;
   const draw2 = newState.deck.length > 0 ? newState.deck.pop()! : null;
 
   const choices: CardName[] = [currentPlayer.hand, draw1, draw2].filter((c): c is CardName => c !== null);
