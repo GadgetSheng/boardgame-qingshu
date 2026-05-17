@@ -75,7 +75,7 @@ export interface GameState {
   deck: CardName[];
   discardPile: CardName[];
   currentPlayerIndex: number;
-  phase: 'setup' | 'playing' | 'gameover';
+  phase: 'setup' | 'playing' | 'roundover' | 'gameover';
   winner: number | null;
   message: string;
   log: string[];

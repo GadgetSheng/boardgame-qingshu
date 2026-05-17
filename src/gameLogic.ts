@@ -156,34 +156,64 @@ function checkPrincessDiscard(state: GameState, playerId: number): GameState {
 
 function checkSpyBonus(state: GameState): GameState {
   const activePlayers = state.players.filter(p => !p.isEliminated);
-  const spyCount: Record<number, number> = {};
 
-  for (const p of activePlayers) {
-    spyCount[p.id] = 0;
+  // 检查discardPile中Spy总数是否为1
+  const totalSpiesInDiscard = state.discardPile.filter(c => c === 'Spy').length;
+  if (totalSpiesInDiscard !== 1) {
+    return state;
   }
 
-  for (const card of state.discardPile) {
-    if (card === 'Spy') {
-      for (const p of activePlayers) {
-        spyCount[p.id]++;
-      }
-    }
-  }
-
-  const soloSpies = Object.entries(spyCount).filter(([_, count]) => count > 0);
-  if (soloSpies.length === 1 && soloSpies[0][1] > 0) {
-    const winnerId = parseInt(soloSpies[0][0]);
-    const winner = state.players.find(p => p.id === winnerId);
-    if (winner) {
-      winner.tokens += 1;
-      return {
-        ...state,
-        message: `${winner.name} 获得间谍奖励1分！`,
-      };
-    }
+  // 找到有Spy的玩家（假设只有打出的玩家才知道自己打了Spy）
+  // 简化：检查是否只有1个玩家hand是Spy
+  const playersWithSpyInHand = activePlayers.filter(p => p.hand === 'Spy');
+  if (playersWithSpyInHand.length === 1) {
+    const winner = playersWithSpyInHand[0];
+    winner.tokens += 1;
+    return {
+      ...state,
+      message: `${winner.name} 获得间谍奖励1分！`,
+    };
   }
 
   return state;
+}
+
+function checkRoundEnd(state: GameState): GameState {
+  const activePlayers = state.players.filter(p => !p.isEliminated);
+
+  if (state.deck.length !== 0) {
+    return state;
+  }
+
+  // deck空，结算本轮
+  let maxPoints = -1;
+  let winners: Player[] = [];
+
+  for (const p of activePlayers) {
+    const points = p.hand !== null ? getCardInfo(p.hand).points : -1;
+    if (points > maxPoints) {
+      maxPoints = points;
+      winners = [p];
+    } else if (points === maxPoints) {
+      winners.push(p);
+    }
+  }
+
+  if (winners.length > 1) {
+    return {
+      ...state,
+      phase: 'roundover',
+      winner: winners[0].id,
+      message: `本轮结束！平局：${winners.map(w => w.name).join('、')} 都是 ${maxPoints} 点`,
+    };
+  }
+
+  return checkSpyBonus({
+    ...state,
+    phase: 'roundover',
+    winner: winners[0].id,
+    message: `本轮结束！${winners[0].name} 以 ${maxPoints} 点获胜！`,
+  });
 }
 
 function checkWinCondition(state: GameState): GameState {
@@ -200,40 +230,9 @@ function checkWinCondition(state: GameState): GameState {
     return checkSpyBonus(finalState);
   }
 
-  if (state.deck.length === 0 && activePlayers.every(p => p.hand !== null)) {
-    let maxPoints = -1;
-    let winners: Player[] = [];
-
-    for (const p of activePlayers) {
-      const points = getCardInfo(p.hand!).points;
-      if (points > maxPoints) {
-        maxPoints = points;
-        winners = [p];
-      } else if (points === maxPoints) {
-        winners.push(p);
-      }
-    }
-
-    let winner = winners[0];
-    let finalState: GameState;
-
-    if (winners.length > 1) {
-      finalState = {
-        ...state,
-        phase: 'gameover',
-        winner: winners[0].id,
-        message: `游戏结束！平局：${winners.map(w => w.name).join('、')} 都是 ${maxPoints} 点`,
-      };
-    } else {
-      finalState = {
-        ...state,
-        phase: 'gameover',
-        winner: winner.id,
-        message: `游戏结束！${winner.name} 以 ${maxPoints} 点获胜！`,
-      };
-    }
-
-    return checkSpyBonus(finalState);
+  // deck空时检查是否本轮结束
+  if (state.deck.length === 0 && activePlayers.every(p => p.hand === null)) {
+    return checkRoundEnd(state);
   }
 
   return state;
