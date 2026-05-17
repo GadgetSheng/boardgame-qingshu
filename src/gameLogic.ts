@@ -39,12 +39,13 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
   const deck = shuffle(createDeck());
   const removedCard = deck.pop()!;
 
-  for (const player of players) {
-    player.hand = deck.pop()!;
-  }
+  const playersWithHands = players.map((player) => ({
+    ...player,
+    hand: deck.pop()!,
+  }));
 
   return {
-    players,
+    players: playersWithHands,
     deck,
     discardPile: [],
     currentPlayerIndex: 0,
