@@ -202,7 +202,7 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
         </div>
         <div className="flex gap-2">
           {state.players.filter(p => p.tokens > 0).map(p => (
-            <span key={p.id} className="px-2 py-1 bg-amber-200 rounded text-sm font-serif">{p.name}: {p.tokens}分</span>
+            <span key={p.id} className="px-2 py-1 bg-amber-200 rounded text-sm font-serif">{p.name}: {p.tokens}❤️</span>
           ))}
         </div>
         <button className="px-4 py-2 text-sm font-serif bg-red-700 text-amber-100 border border-amber-500 rounded-md cursor-pointer hover:bg-red-900 transition" onClick={onRestart}>重新开始</button>
@@ -245,8 +245,24 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
           <div className="text-xs text-amber-400 font-serif">弃牌区</div>
           <div className="flex flex-wrap gap-1 max-w-[200px] justify-center">
             {state.discardPile.map((card, i) => (
-              <Card key={`${card}-${i}`} name={card} small />
+              <Card key={`${card}-${i}`} name={card as CardName} small />
             ))}
+          </div>
+        </div>
+
+        {/* 记牌器 */}
+        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-700">
+          <div className="text-xs font-bold font-serif text-gray-700 mb-2">已出卡牌</div>
+          <div className="flex flex-wrap gap-1">
+            {['Spy', 'Guard', 'Priest', 'Baron', 'Handmaid', 'Prince', 'Chancellor', 'King', 'Countess', 'Princess'].map(card => {
+              const count = state.discardPile.filter(c => c === card).length;
+              if (count === 0) return null;
+              return (
+                <span key={card} className="text-xs font-serif text-gray-600">
+                  {CARD_NAMES_CN[card as CardName]} x{count}
+                </span>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -333,7 +349,7 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
       <div className="fixed right-4 top-20 w-[200px] max-h-[400px] bg-amber-100 rounded-lg border-2 border-amber-700 flex flex-col overflow-hidden">
         <div className="px-3 py-2 text-sm font-bold font-serif text-gray-700 bg-amber-200 border-b border-amber-700">游戏日志</div>
         <div className="flex-1 overflow-y-auto p-2">
-          {state.log.slice(-20).map((entry, i) => (
+          {state.log.map((entry, i) => (
             <div key={i} className="text-[11px] font-serif text-gray-700 py-1 border-b border-amber-200/30">{entry}</div>
           ))}
         </div>
