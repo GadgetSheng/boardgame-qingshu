@@ -19,7 +19,6 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
   const [showGuessSelector, setShowGuessSelector] = useState(false);
   const [showDrawnCards, setShowDrawnCards] = useState(false);
   const [selectedDrawnCard, setSelectedDrawnCard] = useState<CardName | null>(null);
-  const [isChancellorPlayed, setIsChancellorPlayed] = useState(false);
 
   const initGame = useCallback(() => {
     const playerTypes: PlayerType[] = ['human', ...aiTypes];
@@ -31,7 +30,6 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
     setShowGuessSelector(false);
     setShowDrawnCards(false);
     setSelectedDrawnCard(null);
-    setIsChancellorPlayed(false);
   }, [aiTypes]);
 
   useEffect(() => {
@@ -110,7 +108,6 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
     if (!state) return;
     const newState = chancellorChooseCard(state, keptCard);
     setState(newState);
-    setIsChancellorPlayed(false);
   };
 
   const handlePlayCard = () => {
@@ -187,7 +184,7 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   const isHumanTurn = currentPlayer.type === 'human' && state.phase === 'playing';
-  const isChancellorPhase = state.handChoices.length > 0 && isChancellorPlayed && currentPlayer.type === 'human';
+  const isChancellorPhase = state.handChoices.length > 0 && currentPlayer.type === 'human';
 
   const showTargetSelector = selectedCard && ['Priest', 'Baron', 'Prince', 'King'].includes(selectedCard);
   const validTargets = showTargetSelector ? getValidTargets(state, selectedCard) : [];
@@ -250,22 +247,7 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
           </div>
         </div>
 
-        {/* 记牌器 */}
-        <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-700">
-          <div className="text-xs font-bold font-serif text-gray-700 mb-2">已出卡牌</div>
-          <div className="flex flex-wrap gap-1">
-            {['Spy', 'Guard', 'Priest', 'Baron', 'Handmaid', 'Prince', 'Chancellor', 'King', 'Countess', 'Princess'].map(card => {
-              const count = state.discardPile.filter(c => c === card).length;
-              if (count === 0) return null;
-              return (
-                <span key={card} className="text-xs font-serif text-gray-600">
-                  {CARD_NAMES_CN[card as CardName]} x{count}
-                </span>
-              );
-            })}
-          </div>
-        </div>
-      </div>
+              </div>
 
       {/* Chancellor Phase */}
       {isChancellorPhase && (
@@ -352,6 +334,22 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
           {state.log.map((entry, i) => (
             <div key={i} className="text-[11px] font-serif text-gray-700 py-1 border-b border-amber-200/30">{entry}</div>
           ))}
+        </div>
+      </div>
+
+      {/* 记牌器 - Sidebar */}
+      <div className="fixed right-4 top-[420px] w-[200px] bg-amber-100 rounded-lg border-2 border-amber-700 flex flex-col overflow-hidden">
+        <div className="px-3 py-2 text-sm font-bold font-serif text-gray-700 bg-amber-200 border-b border-amber-700">已出卡牌</div>
+        <div className="p-2 flex flex-wrap gap-1">
+          {['Spy', 'Guard', 'Priest', 'Baron', 'Handmaid', 'Prince', 'Chancellor', 'King', 'Countess', 'Princess'].map(card => {
+            const count = state.discardPile.filter(c => c === card).length;
+            if (count === 0) return null;
+            return (
+              <span key={card} className="text-xs font-serif text-gray-600">
+                {CARD_NAMES_CN[card as CardName]} x{count}
+              </span>
+            );
+          })}
         </div>
       </div>
 
