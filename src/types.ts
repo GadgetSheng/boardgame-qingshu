@@ -86,6 +86,7 @@ export interface GameState {
   keptCard: CardName | null;
   removedCard: CardName | null; // 新增：开局移出的牌
   targetTokens: number;        // 新增：获胜所需积分，默认4
+  lastSpyPlayerId: number | null; // 跟踪最后打出Spy的玩家
 }
 
 export interface GameAction {

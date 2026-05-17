@@ -60,6 +60,7 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
     keptCard: null,
     removedCard,
     targetTokens: 4,
+    lastSpyPlayerId: null,
   };
 }
 
@@ -155,24 +156,23 @@ function checkPrincessDiscard(state: GameState, playerId: number): GameState {
 }
 
 function checkSpyBonus(state: GameState): GameState {
-  const activePlayers = state.players.filter(p => !p.isEliminated);
-
   // 检查discardPile中Spy总数是否为1
   const totalSpiesInDiscard = state.discardPile.filter(c => c === 'Spy').length;
   if (totalSpiesInDiscard !== 1) {
     return state;
   }
 
-  // 找到有Spy的玩家（假设只有打出的玩家才知道自己打了Spy）
-  // 简化：检查是否只有1个玩家hand是Spy
-  const playersWithSpyInHand = activePlayers.filter(p => p.hand === 'Spy');
-  if (playersWithSpyInHand.length === 1) {
-    const winner = playersWithSpyInHand[0];
-    winner.tokens += 1;
-    return {
-      ...state,
-      message: `${winner.name} 获得间谍奖励1分！`,
-    };
+  // 使用lastSpyPlayerId来识别打出Spy的玩家
+  if (state.lastSpyPlayerId !== null) {
+    const spyPlayer = state.players[state.lastSpyPlayerId];
+    if (spyPlayer && !spyPlayer.isEliminated) {
+      spyPlayer.tokens += 1;
+      return {
+        ...state,
+        lastSpyPlayerId: null,
+        message: `${spyPlayer.name} 获得间谍奖励1分！`,
+      };
+    }
   }
 
   return state;
@@ -477,6 +477,7 @@ export function playCard(state: GameState, cardName: CardName, targetId?: number
     case 'Spy':
       newState = {
         ...state,
+        lastSpyPlayerId: state.currentPlayerIndex,
         discardPile: [...state.discardPile, 'Spy'] as CardName[],
         message: '间谍发动（无即时效果）',
         log: [...state.log, `${currentPlayer.name} 打出了间谍`],
