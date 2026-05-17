@@ -334,9 +334,24 @@ function handlePrince(state: GameState, targetId: number): GameState {
   }
 
   const oldHand = target.hand;
-  target.hand = newState.deck.length > 0 ? newState.deck.pop()! : null;
+  let newHand: CardName | null = null;
 
-  if (target.hand === null) {
+  // 判断是否是唯一存活玩家（除自己外）
+  const otherPlayers = newState.players.filter(p => p.id !== current.id && !p.isEliminated);
+  const isLastPlayer = otherPlayers.length === 1 && otherPlayers[0].id === targetId;
+
+  if (isLastPlayer && newState.removedCard) {
+    // 最后玩家抽开局移出的牌
+    newHand = newState.removedCard;
+    newState.removedCard = null;
+  } else if (newState.deck.length > 0) {
+    // 正常从牌堆抽
+    newHand = newState.deck.pop()!;
+  }
+
+  target.hand = newHand;
+
+  if (newHand === null) {
     target.isEliminated = true;
   }
 
