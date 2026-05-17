@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { GameState, CardName, PlayerType } from './types';
-import { setupGame, drawCard, playCard, getValidTargets, getValidGuesses, chancellorChooseCard, getCardPoints, chooseDrawnCard } from './gameLogic';
-import { makeAIDecision, makeChancellorChoice } from './ai';
+import { setupGame, drawCard, playCard, getValidTargets, getValidGuesses, chancellorChooseCard, getCardPoints, chooseDrawnCard, takeAITurn } from './gameLogic';
+import { makeChancellorChoice } from './ai';
 import Card from './Card';
 import PlayerArea from './PlayerArea';
 import { CARD_NAMES_CN } from './types';
@@ -52,53 +52,10 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
 
   const executeAITurn = useCallback(() => {
     if (!state) return;
-
     const currentPlayer = state.players[state.currentPlayerIndex];
-    if (currentPlayer.type !== 'human') return;
-
-    let gameState = state;
-
-    if (gameState.handChoices.length > 0) {
-      const keptCard = makeChancellorChoice(gameState);
-      gameState = chancellorChooseCard(gameState, keptCard);
-      setState({ ...gameState });
-      return;
-    }
-
-    if (gameState.deck.length > 0 && currentPlayer.hand === null) {
-      gameState = drawCard(gameState);
-      setState({ ...gameState });
-      return;
-    }
-
-    const decision = makeAIDecision(gameState);
-
-    if (decision.cardName && currentPlayer.hand) {
-      gameState = playCard(gameState, decision.cardName, decision.targetId, decision.guess);
-      if (decision.cardName === 'Chancellor') {
-        setIsChancellorPlayed(true);
-      }
-      setState({ ...gameState });
-
-      if (gameState.handChoices.length > 0) {
-        setTimeout(() => executeAITurn(), 1000);
-        return;
-      }
-
-      // After playing a non-Chancellor card, auto-draw if hand is null
-      const afterPlayPlayer = gameState.players[gameState.currentPlayerIndex];
-      if (afterPlayPlayer.hand === null && gameState.deck.length > 0) {
-        gameState = drawCard(gameState);
-        setState({ ...gameState });
-        setTimeout(() => executeAITurn(), 500);
-        return;
-      }
-
-      const nextPlayer = gameState.players[gameState.currentPlayerIndex];
-      if (nextPlayer.type !== 'human' && gameState.phase === 'playing') {
-        setTimeout(() => executeAITurn(), 1000);
-      }
-    }
+    if (currentPlayer.type === 'human') return;
+    const newState = takeAITurn(state, makeChancellorChoice);
+    setState(newState);
   }, [state]);
 
   const autoDrawIfNeeded = useCallback(() => {

@@ -1,5 +1,6 @@
 import type { CardName, Player, GameState, PlayerType } from './types';
 import { createDeck, getCardInfo, CARD_NAMES_CN } from './types';
+import { makeAIDecision } from './ai';
 
 function shuffle<T>(array: T[]): T[] {
   const arr = [...array];
@@ -8,6 +9,32 @@ function shuffle<T>(array: T[]): T[] {
     [arr[i], arr[j]] = [arr[j], arr[i]];
   }
   return arr;
+}
+
+export function takeAITurn(
+  state: GameState,
+  makeChancellorChoiceFn: (state: GameState) => CardName
+): GameState {
+  let newState = state;
+
+  // AI回合：抽牌（如果手牌为空）
+  if (newState.deck.length > 0 && newState.players[newState.currentPlayerIndex].hand === null) {
+    newState = drawCard(newState);
+  }
+
+  // 如果有handChoices（Chancellor抽2选1），AI选择
+  if (newState.handChoices.length > 0) {
+    const keptCard = makeChancellorChoiceFn(newState);
+    newState = chancellorChooseCard(newState, keptCard);
+  }
+
+  const currentPlayer = newState.players[newState.currentPlayerIndex];
+  if (currentPlayer.hand) {
+    const decision = makeAIDecision(newState);
+    newState = playCard(newState, decision.cardName, decision.targetId, decision.guess);
+  }
+
+  return newState;
 }
 
 export function createPlayers(count: number, humanCount: number = 1): Player[] {
