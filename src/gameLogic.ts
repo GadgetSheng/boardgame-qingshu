@@ -325,7 +325,7 @@ function handleHandmaid(state: GameState): GameState {
 }
 
 function handlePrince(state: GameState, targetId: number): GameState {
-  const newState = { ...state, players: [...state.players] };
+  let newState = { ...state, players: [...state.players] };
   const current = newState.players[state.currentPlayerIndex];
   const target = newState.players.find(p => p.id === targetId);
 
@@ -343,7 +343,7 @@ function handlePrince(state: GameState, targetId: number): GameState {
   if (isLastPlayer && newState.removedCard) {
     // 最后玩家抽开局移出的牌
     newHand = newState.removedCard;
-    newState.removedCard = null;
+    newState = { ...newState, removedCard: null };
   } else if (newState.deck.length > 0) {
     // 正常从牌堆抽
     newHand = newState.deck.pop()!;
