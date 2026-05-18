@@ -1,3 +1,4 @@
+import clsx from 'clsx';
 import type { CardName } from '../types';
 import { CARD_NAMES_CN } from '../types';
 import { useGameStore } from '../store/gameStore';
@@ -62,7 +63,11 @@ export default function CardPlayer() {
 
           {selectedCard !== 'Guard' && (
             <button
-              className="px-8 py-4 text-lg font-serif bg-gradient-to-b from-red-800 to-red-900 text-white border-2 border-amber-500 rounded-lg cursor-pointer hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className={clsx(
+                'px-8 py-4 text-lg font-serif bg-gradient-to-b from-red-800 to-red-900 text-white border-2 border-amber-500 rounded-lg transition',
+                'hover:-translate-y-0.5 hover:shadow-lg',
+                !canPlayCard() && 'opacity-50 cursor-not-allowed'
+              )}
               onClick={handlePlayCard}
               disabled={!canPlayCard()}
             >
@@ -72,7 +77,11 @@ export default function CardPlayer() {
 
           {selectedCard === 'Guard' && guardGuess !== null && (
             <button
-              className="px-8 py-4 text-lg font-serif bg-gradient-to-b from-red-800 to-red-900 text-white border-2 border-amber-500 rounded-lg cursor-pointer hover:-translate-y-0.5 hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transition"
+              className={clsx(
+                'px-8 py-4 text-lg font-serif bg-gradient-to-b from-red-800 to-red-900 text-white border-2 border-amber-500 rounded-lg transition',
+                'hover:-translate-y-0.5 hover:shadow-lg',
+                !canPlayCard() && 'opacity-50 cursor-not-allowed'
+              )}
               onClick={handlePlayCard}
               disabled={!canPlayCard()}
             >

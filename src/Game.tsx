@@ -24,6 +24,7 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
     gameState,
     initGame,
     executeAITurn,
+    selectedCard,
   } = useGameStore();
 
   useEffect(() => {
@@ -64,7 +65,6 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
   const isHumanTurn = currentPlayer.type === 'human' && (gameState.phase === 'playing' || gameState.phase === 'select-target');
   const isChancellorPhase = gameState.handChoices.length > 0 && currentPlayer.type === 'human' && gameState.phase !== 'select-card';
 
-  const selectedCard = useGameStore.getState().selectedCard;
   const showTargetSelector = selectedCard && ['Priest', 'Baron', 'Prince', 'King'].includes(selectedCard);
   const validTargets = showTargetSelector ? getValidTargets(gameState, selectedCard) : [];
 

@@ -1,6 +1,7 @@
 import type { Player as PlayerType, CardName } from './types';
 import Card from './Card';
 import { getCardInfo } from './types';
+import clsx from 'clsx';
 
 interface PlayerAreaProps {
   player: PlayerType;
@@ -24,15 +25,16 @@ export default function PlayerArea({
   const displayCard = showHand && player.hand ? player.hand : (knownCard || (player.hand && isHuman ? player.hand : null));
   const faceDown = !displayCard && player.hand !== null;
 
-  const baseClass = 'flex flex-col items-center p-2 rounded-lg transition-all';
-  const currentClass = isCurrentPlayer ? 'border-2 border-amber-500 bg-amber-100/60 shadow-lg shadow-amber-500/30' : 'border-2 border-transparent bg-yellow-50/30';
-  const eliminatedClass = player.isEliminated ? 'opacity-50' : '';
-  const protectedClass = player.isProtected ? 'bg-green-100/20' : '';
-  const selectableClass = selectable ? 'border-2 border-green-600 bg-green-200/30 shadow-lg shadow-green-500/50 cursor-pointer hover:bg-green-200/50' : '';
-
   return (
     <div
-      className={`${baseClass} ${currentClass} ${eliminatedClass} ${protectedClass} ${selectableClass} relative`}
+      className={clsx(
+        'flex flex-col items-center p-2 rounded-lg transition-all',
+        isCurrentPlayer ? 'border-2 border-amber-500 bg-amber-100/60 shadow-lg shadow-amber-500/30' : 'border-2 border-transparent bg-yellow-50/30',
+        player.isEliminated && 'opacity-50',
+        player.isProtected && 'bg-green-100/20',
+        selectable && 'border-2 border-green-600 bg-green-200/30 shadow-lg shadow-green-500/50 cursor-pointer hover:bg-green-200/50',
+        'relative'
+      )}
       onClick={onSelectPlayer}
     >
       {/* Card point in top right corner */}

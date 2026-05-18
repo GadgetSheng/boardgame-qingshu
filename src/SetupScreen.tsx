@@ -20,7 +20,6 @@ export default function SetupScreen({ onStart }: SetupScreenProps) {
 
   return (
     <div className="min-h-screen bg-[length:20px_20px] bg-[linear-gradient(45deg,#e8e8e8_25%,transparent_25%),linear-gradient(-45deg,#e8e8e8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f5f5f5_75%),linear-gradient(-45deg,transparent_75%,#f5f5f5_75%)] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] flex flex-col items-center justify-center p-8">
-      <div className="text-6xl font-bold text-amber-500 font-serif mb-2">情书</div>
       <div className="text-lg text-amber-400 font-serif mb-8">Love Letter 2019</div>
 
       <div className="bg-amber-100 rounded-xl p-8 border-2 border-amber-700 flex flex-col items-center gap-6">

@@ -1,5 +1,6 @@
 import type { CardName } from './types';
 import { getCardInfo, CARD_NAMES_CN } from './types';
+import clsx from 'clsx';
 
 interface CardProps {
   name: CardName;
@@ -16,10 +17,10 @@ const CARD_IMAGES: Record<CardName, string> = {
   Priest: '📜',
   Baron: '⚔️',
   Handmaid: '🌹',
-  Prince: '👑',
-  Chancellor: '📋',
-  King: '👸',
-  Countess: '💋',
+  Prince: '🤴',
+  Chancellor: '👴',
+  King: '👑',
+  Countess: '👩',
   Princess: '💌',
 };
 
@@ -31,7 +32,7 @@ export default function Card({ name, faceDown, onClick, small, disabled, selecte
 
   if (faceDown) {
     return (
-      <div className={`card card-back ${sizeClass} ${disabled ? 'opacity-60 cursor-not-allowed' : ''} ${selected ? 'card-selected' : ''}`}>
+      <div className={clsx('card card-back', sizeClass, disabled && 'opacity-60 cursor-not-allowed', selected && 'card-selected')}>
         <div className="card-back-design">
           <span>?</span>
         </div>
@@ -43,12 +44,12 @@ export default function Card({ name, faceDown, onClick, small, disabled, selecte
 
   return (
     <div
-      className={`card card-front ${sizeClass} ${disabled ? 'opacity-60 cursor-not-allowed' : ''} ${onClick ? 'card-clickable' : ''} ${selected ? 'card-selected' : ''}`}
+      className={clsx('card card-front', sizeClass, disabled && 'opacity-60 cursor-not-allowed', onClick && 'card-clickable', selected && 'card-selected')}
       onClick={onClick}
     >
-      <div className={`card-icon ${iconSize}`}>{CARD_IMAGES[name]}</div>
-      <div className={`card-name ${nameSize}`}>{CARD_NAMES_CN[name]}</div>
-      <div className={`card-points ${pointsSize}`}>{info.points}</div>
+      <div className={clsx('card-icon', iconSize)}>{CARD_IMAGES[name]}</div>
+      <div className={clsx('card-name', nameSize)}>{CARD_NAMES_CN[name]}</div>
+      <div className={clsx('card-points', pointsSize)}>{info.points}</div>
       {!small && <div className="card-desc text-[8px]">{info.description}</div>}
     </div>
   );
