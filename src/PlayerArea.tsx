@@ -1,5 +1,6 @@
 import type { Player as PlayerType, CardName } from './types';
 import Card from './Card';
+import { getCardInfo } from './types';
 
 interface PlayerAreaProps {
   player: PlayerType;
@@ -31,9 +32,16 @@ export default function PlayerArea({
 
   return (
     <div
-      className={`${baseClass} ${currentClass} ${eliminatedClass} ${protectedClass} ${selectableClass}`}
+      className={`${baseClass} ${currentClass} ${eliminatedClass} ${protectedClass} ${selectableClass} relative`}
       onClick={onSelectPlayer}
     >
+      {/* Card point in top right corner */}
+      {displayCard && (
+        <div className="absolute top-1 right-1 w-6 h-6 bg-red-800 rounded-full flex items-center justify-center text-white text-xs font-bold">
+          {getCardInfo(displayCard).points}
+        </div>
+      )}
+
       <div className="flex items-center gap-1 mb-1">
         <span className="text-sm font-bold text-gray-700 font-serif">{player.name}</span>
         {player.type === 'easy-ai' && <span className="text-xs text-gray-500">(简单)</span>}

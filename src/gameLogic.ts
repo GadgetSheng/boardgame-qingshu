@@ -34,6 +34,15 @@ export function takeAITurn(
     newState = playCard(newState, decision.cardName, decision.targetId, decision.guess);
   }
 
+  // AI出牌后自动继续下一回合
+  if (newState.waitingForNextTurn) {
+    newState = advanceToNextTurn(newState);
+    // AI自动抽牌
+    if (newState.deck.length > 0 && newState.players[newState.currentPlayerIndex].hand === null) {
+      newState = drawCard(newState);
+    }
+  }
+
   return newState;
 }
 
@@ -64,12 +73,17 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
   }));
 
   const deck = shuffle(createDeck());
+  console.log('[DEBUG] 洗牌后牌堆:', deck.length, '张', deck);
   const removedCard = deck.pop()!;
+  console.log('[DEBUG] 移除的牌:', removedCard);
+  console.log('[DEBUG] 剩余牌堆:', deck.length, '张', deck);
 
   const playersWithHands = players.map((player) => ({
     ...player,
     hand: deck.pop()!,
   }));
+  console.log('[DEBUG] 初始化后各玩家手牌:', playersWithHands.map(p => ({name: p.name, hand: p.hand})));
+  console.log('[DEBUG] 初始化后discardPile:', []);
 
   return {
     players: playersWithHands,
@@ -88,6 +102,7 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
     removedCard,
     targetTokens: 4,
     lastSpyPlayerId: null,
+    waitingForNextTurn: false,
   };
 }
 
@@ -95,19 +110,26 @@ export function drawCard(state: GameState): GameState {
   const newState = { ...state, players: [...state.players] };
   const currentPlayer = newState.players[state.currentPlayerIndex];
 
+  console.log('[DEBUG] drawCard调用 - 当前玩家:', currentPlayer.name, 'deck长度:', newState.deck.length);
+
   // Bug修复：deck空时应该跳过抽牌阶段，不改变hand
   if (newState.deck.length === 0) {
+    console.log('[DEBUG] 牌堆空，跳过抽牌');
     return {
       ...newState,
+      phase: 'playing',
       message: `${currentPlayer.name}无法抽牌（牌堆空），出牌阶段`,
     };
   }
 
   const drawnCard = newState.deck.pop()!;
+  console.log('[DEBUG] 抽到的牌:', drawnCard, '剩余deck:', newState.deck.length);
   const choices: CardName[] = [currentPlayer.hand, drawnCard].filter((c): c is CardName => c !== null);
+  console.log('[DEBUG] handChoices:', choices);
 
   return {
     ...newState,
+    phase: 'select-card',
     handChoices: choices,
     handChoicesOrder: [],
     keptCard: null,
@@ -143,19 +165,30 @@ export function drawTwoCards(state: GameState): GameState {
 }
 
 export function chooseDrawnCard(state: GameState, playedCard: CardName): GameState {
-  const newState = { ...state, players: [...state.players] };
+  const newState = { ...state, players: [...state.players], discardPile: [...state.discardPile] };
   const currentPlayer = newState.players[state.currentPlayerIndex];
 
   const otherCard = newState.handChoices.find(c => c !== playedCard);
 
-  currentPlayer.hand = playedCard;
+  // playedCard是打出的牌，otherCard是保留的手牌
+  currentPlayer.hand = otherCard ?? null;
+  newState.discardPile.push(playedCard);
+
+  console.log('[DEBUG] chooseDrawnCard:', currentPlayer.name, '打出', playedCard, '保留', otherCard);
+  console.log('[DEBUG] discardPile now:', newState.discardPile);
+  console.log('[DEBUG] 各玩家手牌:', newState.players.map(p => ({name: p.name, hand: p.hand})));
+
+  const cardNeedsTarget = ['Guard', 'Priest', 'Baron', 'Prince', 'King'].includes(playedCard);
 
   return {
     ...newState,
     handChoices: [],
     handChoicesOrder: [],
     keptCard: otherCard ?? null,
-    message: `${currentPlayer.name} 打出了 ${playedCard}`,
+    phase: cardNeedsTarget ? 'select-target' : 'playing',
+    message: cardNeedsTarget
+      ? `${currentPlayer.name} 打出了 ${playedCard}，选择目标`
+      : `${currentPlayer.name} 打出了 ${playedCard}`,
   };
 }
 
@@ -437,6 +470,10 @@ export function chancellorChooseCard(state: GameState, keptCard: CardName): Game
 
   current.hand = keptCard;
 
+  console.log('[DEBUG] chancellorChooseCard:', current.name, '保留', keptCard, '其他', otherCards, '放回牌堆');
+  console.log('[DEBUG] discardPile now:', newState.discardPile);
+  console.log('[DEBUG] deck now:', newState.deck.length);
+
   return {
     ...newState,
     handChoices: [],
@@ -563,29 +600,36 @@ export function playCard(state: GameState, cardName: CardName, targetId?: number
     return checkWinCondition(newState);
   }
 
+  // Chancellor特殊：保持playing让玩家继续选择
   if (cardName === 'Chancellor') {
     return newState;
   }
 
-  let nextIndex = (newState.currentPlayerIndex + 1) % newState.players.length;
+  // 等待玩家确认后再到下一回合
+  return {
+    ...newState,
+    waitingForNextTurn: true,
+    message: `等待确认后到下一回合`,
+  };
+}
+
+export function advanceToNextTurn(state: GameState): GameState {
+  let nextIndex = (state.currentPlayerIndex + 1) % state.players.length;
   let attempts = 0;
-  while (newState.players[nextIndex].isEliminated && attempts < newState.players.length) {
-    nextIndex = (nextIndex + 1) % newState.players.length;
+  while (state.players[nextIndex].isEliminated && attempts < state.players.length) {
+    nextIndex = (nextIndex + 1) % state.players.length;
     attempts++;
   }
-  newState.currentPlayerIndex = nextIndex;
 
-  newState.players = newState.players.map((p, idx) => ({
-    ...p,
-    isProtected: idx === nextIndex ? p.isProtected : false,
-  }));
+  const nextPlayer = state.players[nextIndex];
 
-  newState.message = `${newState.players[newState.currentPlayerIndex].name}的回合 - 抽牌`;
-  if (newState.players[newState.currentPlayerIndex].type !== 'human') {
-    newState.message += ' (AI思考中...)';
-  }
-
-  return newState;
+  return {
+    ...state,
+    currentPlayerIndex: nextIndex,
+    waitingForNextTurn: false,
+    phase: 'playing',
+    message: `${nextPlayer.name}的回合 - 抽牌`,
+  };
 }
 
 export function getValidTargets(state: GameState, _cardName: CardName): Player[] {

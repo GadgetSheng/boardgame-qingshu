@@ -19,7 +19,7 @@ export default function SetupScreen({ onStart }: SetupScreenProps) {
   const aiNames = ['普通AI', '简单AI', '简单AI', '简单AI', '简单AI'];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-red-950 to-red-900 flex flex-col items-center justify-center p-8">
+    <div className="min-h-screen bg-[length:20px_20px] bg-[linear-gradient(45deg,#e8e8e8_25%,transparent_25%),linear-gradient(-45deg,#e8e8e8_25%,transparent_25%),linear-gradient(45deg,transparent_75%,#f5f5f5_75%),linear-gradient(-45deg,transparent_75%,#f5f5f5_75%)] bg-[position:0_0,0_10px,10px_-10px,-10px_0px] flex flex-col items-center justify-center p-8">
       <div className="text-6xl font-bold text-amber-500 font-serif mb-2">情书</div>
       <div className="text-lg text-amber-400 font-serif mb-8">Love Letter 2019</div>
 
@@ -61,8 +61,8 @@ export default function SetupScreen({ onStart }: SetupScreenProps) {
         <div className="text-sm font-bold text-amber-400 font-serif mb-2">游戏规则</div>
         <ul className="text-xs text-amber-100 font-serif space-y-1">
           <li>• 每回合抽1张牌，打出1张牌</li>
-          <li>• 被猜中手牌或弹劾公主即淘汰</li>
-          <li>• 最后存活或点数最大者获胜</li>
+          <li>• 被猜中手牌或打出公主即淘汰</li>
+          <li>• 点数最大者赢得胜利</li>
           <li>• 间谍(Spy): 独家打出且存活至局末，额外+1分</li>
           <li>• 大臣(Chancellor): 抽2选1，其余放回牌库底</li>
         </ul>

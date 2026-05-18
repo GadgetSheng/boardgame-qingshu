@@ -70,12 +70,14 @@ export interface Player {
   tokens: number;
 }
 
+export type GamePhase = 'setup' | 'select-card' | 'select-target' | 'playing' | 'roundover' | 'gameover';
+
 export interface GameState {
   players: Player[];
   deck: CardName[];
   discardPile: CardName[];
   currentPlayerIndex: number;
-  phase: 'setup' | 'playing' | 'roundover' | 'gameover';
+  phase: GamePhase;
   winner: number | null;
   message: string;
   log: string[];
@@ -84,9 +86,10 @@ export interface GameState {
   handChoices: CardName[];
   handChoicesOrder: number[];
   keptCard: CardName | null;
-  removedCard: CardName | null; // 新增：开局移出的牌
-  targetTokens: number;        // 新增：获胜所需积分，默认4
-  lastSpyPlayerId: number | null; // 跟踪最后打出Spy的玩家
+  removedCard: CardName | null;
+  targetTokens: number;
+  lastSpyPlayerId: number | null;
+  waitingForNextTurn: boolean;
 }
 
 export interface GameAction {
