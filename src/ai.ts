@@ -15,15 +15,23 @@ export function makeAIDecision(state: GameState): { cardName: CardName; targetId
   const currentPlayer = state.players[state.currentPlayerIndex];
   const hand = currentPlayer.hand;
 
+  console.log(`[AI决策] ${currentPlayer.name} 开始决策，手牌: ${hand ?? '无'}`);
+
   if (!hand) {
-    return { cardName: state.deck.length > 0 ? state.deck[state.deck.length - 1] : 'Spy' };
+    const decision = { cardName: state.deck.length > 0 ? state.deck[state.deck.length - 1] : 'Spy' };
+    console.log(`[AI决策] ${currentPlayer.name} 无手牌，临时决定: ${decision.cardName}`);
+    return decision;
   }
 
   if (currentPlayer.type === 'easy-ai') {
-    return easyAI(state, hand);
+    const decision = easyAI(state, hand);
+    console.log(`[AI决策] ${currentPlayer.name}(easy) 决定出: ${decision.cardName}`, decision.targetId ? `目标: ${state.players.find(p => p.id === decision.targetId)?.name}` : '', decision.guess ? `猜测: ${decision.guess}` : '');
+    return decision;
   }
 
-  return normalAI(state, hand);
+  const decision = normalAI(state, hand);
+  console.log(`[AI决策] ${currentPlayer.name}(normal) 决定出: ${decision.cardName}`, decision.targetId ? `目标: ${state.players.find(p => p.id === decision.targetId)?.name}` : '', decision.guess ? `猜测: ${decision.guess}` : '');
+  return decision;
 }
 
 function easyAI(state: GameState, hand: CardName): { cardName: CardName; targetId?: number; guess?: CardName } {
@@ -102,5 +110,6 @@ export function makeChancellorChoice(state: GameState): CardName {
   };
 
   const sorted = [...choices].sort((a, b) => cardPriority[b] - cardPriority[a]);
+  console.log(`[AI决策] Chancellor选择: ${choices} -> 保留 ${sorted[0]}`);
   return sorted[0];
 }

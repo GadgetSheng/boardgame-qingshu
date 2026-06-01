@@ -22,6 +22,7 @@ interface GameStore extends UIState {
   setGuardGuess: (guess: CardName | null) => void;
   setSelectedDrawnCard: (card: CardName | null) => void;
   setWaitingForNextTurn: (waiting: boolean) => void;
+  drawForCurrentPlayer: () => void;
 
   // Game logic
   handleCardClick: (cardName: CardName) => void;
@@ -70,6 +71,14 @@ export const useGameStore = create<GameStore>((set, get) => ({
   setSelectedDrawnCard: (card) => set({ selectedDrawnCard: card }),
   setWaitingForNextTurn: (waiting) => set({ waitingForNextTurn: waiting }),
 
+  drawForCurrentPlayer: () => {
+    const { gameState } = get();
+    if (!gameState) return;
+    if (gameState.deck.length === 0) return;
+    if (gameState.handChoices.length > 0) return;
+    set({ gameState: drawCard(gameState) });
+  },
+
   handleCardClick: (cardName) => {
     const { gameState } = get();
     if (!gameState) return;
@@ -101,21 +110,34 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   handlePlayCard: () => {
     const { gameState, selectedCard, targetPlayerId, guardGuess } = get();
-    if (!gameState || !selectedCard) return;
-    if (!get().canPlayCard()) return;
+    if (!gameState || !selectedCard) {
+      console.log(`[Store] handlePlayCard 失败: gameState或selectedCard为空`);
+      return;
+    }
+    if (!get().canPlayCard()) {
+      console.log(`[Store] handlePlayCard 失败: canPlayCard返回false`);
+      return;
+    }
 
     let targetId: number | undefined;
     if (['Guard', 'Priest', 'Baron', 'Prince', 'King'].includes(selectedCard)) {
       if (targetPlayerId !== null) {
         targetId = targetPlayerId;
       } else {
+        console.log(`[Store] handlePlayCard 失败: 需要选择目标`);
         return;
       }
     }
 
-    if (selectedCard === 'Guard' && guardGuess === null) return;
+    if (selectedCard === 'Guard' && guardGuess === null) {
+      console.log(`[Store] handlePlayCard 失败: Guard需要猜测`);
+      return;
+    }
+
+    console.log(`[Store] handlePlayCard: ${selectedCard}, targetId=${targetId}, guess=${guardGuess}`);
 
     const newState = playCard(gameState, selectedCard, targetId, guardGuess ?? undefined);
+    console.log(`[Store] 出牌后message: ${newState.message}`);
     set({ gameState: newState, selectedCard: null, targetPlayerId: null, guardGuess: null });
 
     if (newState.phase === 'gameover') return;
@@ -158,7 +180,9 @@ export const useGameStore = create<GameStore>((set, get) => ({
     if (!gameState) return;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
     if (currentPlayer.type === 'human') return;
+    console.log(`[Store] executeAITurn被调用，AI玩家: ${currentPlayer.name}`);
     const newState = takeAITurn(gameState, makeChancellorChoice);
+    console.log(`[Store] AI回合完成，新状态message: ${newState.message}`);
     set({ gameState: newState });
   },
 

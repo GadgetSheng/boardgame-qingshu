@@ -16,33 +16,47 @@ export function takeAITurn(
   makeChancellorChoiceFn: (state: GameState) => CardName
 ): GameState {
   let newState = state;
+  const playerName = newState.players[newState.currentPlayerIndex].name;
+
+  console.log(`[AI行动] === ${playerName} 回合开始 ===`);
+  console.log(`[AI行动] 当前状态: phase=${newState.phase}, deck=${newState.deck.length}, waitingForNextTurn=${newState.waitingForNextTurn}`);
 
   // AI回合：抽牌（如果手牌为空）
   if (newState.deck.length > 0 && newState.players[newState.currentPlayerIndex].hand === null) {
+    console.log(`[AI行动] ${playerName} 手牌为空，执行抽牌`);
     newState = drawCard(newState);
   }
 
   // 如果有handChoices（Chancellor抽2选1），AI选择
   if (newState.handChoices.length > 0) {
+    console.log(`[AI行动] ${playerName} 面临手牌选择:`, newState.handChoices);
     const keptCard = makeChancellorChoiceFn(newState);
+    console.log(`[AI行动] ${playerName} 选择保留: ${keptCard}`);
     newState = chancellorChooseCard(newState, keptCard);
   }
 
   const currentPlayer = newState.players[newState.currentPlayerIndex];
   if (currentPlayer.hand) {
+    console.log(`[AI行动] ${playerName} 准备出牌: ${currentPlayer.hand}`);
     const decision = makeAIDecision(newState);
+    console.log(`[AI行动] ${playerName} 决策结果:`, JSON.stringify(decision));
     newState = playCard(newState, decision.cardName, decision.targetId, decision.guess);
+    console.log(`[AI行动] ${playerName} 出牌后message: ${newState.message}`);
   }
 
   // AI出牌后自动继续下一回合
   if (newState.waitingForNextTurn) {
+    console.log(`[AI行动] ${playerName} 等待确认后进入下一回合`);
     newState = advanceToNextTurn(newState);
+    console.log(`[AI行动] ${playerName} 进入下一回合，当前玩家: ${newState.players[newState.currentPlayerIndex].name}`);
     // AI自动抽牌
     if (newState.deck.length > 0 && newState.players[newState.currentPlayerIndex].hand === null) {
+      console.log(`[AI行动] 下一玩家 ${newState.players[newState.currentPlayerIndex].name} 手牌为空，执行抽牌`);
       newState = drawCard(newState);
     }
   }
 
+  console.log(`[AI行动] === ${playerName} 回合结束 ===`);
   return newState;
 }
 
@@ -104,6 +118,7 @@ export function setupGame(playerTypes: PlayerType[]): GameState {
     lastSpyPlayerId: null,
     waitingForNextTurn: false,
   };
+  // 不预抽, Game.tsx 的 effect 在 phase='playing' 时统一触发 drawForCurrentPlayer
 }
 
 export function drawCard(state: GameState): GameState {
@@ -112,15 +127,16 @@ export function drawCard(state: GameState): GameState {
 
   console.log('[DEBUG] drawCard调用 - 当前玩家:', currentPlayer.name, 'deck长度:', newState.deck.length);
 
-  // Bug修复：deck空时应该跳过抽牌阶段，不改变hand
-  if (newState.deck.length === 0) {
-    console.log('[DEBUG] 牌堆空，跳过抽牌');
-    return {
-      ...newState,
-      phase: 'playing',
-      message: `${currentPlayer.name}无法抽牌（牌堆空），出牌阶段`,
-    };
-  }
+  // TODO: 抽牌完，牌堆空，进入挑战阶段
+  // // Bug修复：deck空时应该跳过抽牌阶段，不改变hand
+  // if (newState.deck.length === 0) {
+  //   console.log('[DEBUG] 牌堆空，跳过抽牌');
+  //   return {
+  //     ...newState,
+  //     phase: 'playing',
+  //     message: `${currentPlayer.name}无法抽牌（牌堆空），出牌阶段`,
+  //   };
+  // }
 
   const drawnCard = newState.deck.pop()!;
   console.log('[DEBUG] 抽到的牌:', drawnCard, '剩余deck:', newState.deck.length);
@@ -161,6 +177,7 @@ export function drawTwoCards(state: GameState): GameState {
     handChoicesOrder: [],
     keptCard: null,
     message: `${currentPlayer.name} 抽了2张牌，选择1张打出`,
+    log: [...newState.log, `${currentPlayer.name} 抽了2张牌, 加上手中共 ${choices.length} 张, 选1张打出`],
   };
 }
 
@@ -189,6 +206,7 @@ export function chooseDrawnCard(state: GameState, playedCard: CardName): GameSta
     message: cardNeedsTarget
       ? `${currentPlayer.name} 打出了 ${playedCard}，选择目标`
       : `${currentPlayer.name} 打出了 ${playedCard}`,
+    log: [...newState.log, `${currentPlayer.name} 打出 ${playedCard}, 保留 ${otherCard ?? '无'}`],
   };
 }
 
@@ -200,6 +218,7 @@ function eliminatePlayer(state: GameState, playerId: number, reason: string): Ga
   const newState = { ...state, players: [...state.players] };
   const player = newState.players.find(p => p.id === playerId);
   if (player) {
+    console.log(`[游戏逻辑] 玩家 ${player.name} 被淘汰: ${reason}`);
     player.isEliminated = true;
     player.hand = null;
     newState.log = [...newState.log, `${player.name} 淘汰: ${reason}`];
@@ -210,6 +229,7 @@ function eliminatePlayer(state: GameState, playerId: number, reason: string): Ga
 function checkPrincessDiscard(state: GameState, playerId: number): GameState {
   const player = state.players.find(p => p.id === playerId);
   if (player?.hand === 'Princess') {
+    console.log(`[游戏逻辑] ${player.name} 因弹劾公主被淘汰`);
     return eliminatePlayer(state, playerId, '弹劾公主');
   }
   return state;
@@ -227,10 +247,12 @@ function checkSpyBonus(state: GameState): GameState {
     const spyPlayer = state.players[state.lastSpyPlayerId];
     if (spyPlayer && !spyPlayer.isEliminated) {
       spyPlayer.tokens += 1;
+      console.log(`[游戏逻辑] ${spyPlayer.name} 获得间谍奖励1分 (${spyPlayer.tokens}分)`);
       return {
         ...state,
         lastSpyPlayerId: null,
         message: `${spyPlayer.name} 获得间谍奖励1分！`,
+        log: [...state.log, `${spyPlayer.name} 打出唯一间谍，获得 1 分奖励 (当前 ${spyPlayer.tokens} 分)`],
       };
     }
   }
@@ -265,6 +287,7 @@ function checkRoundEnd(state: GameState): GameState {
       phase: 'roundover',
       winner: winners[0].id,
       message: `本轮结束！平局：${winners.map(w => w.name).join('、')} 都是 ${maxPoints} 点`,
+      log: [...state.log, `本轮结束！平局：${winners.map(w => w.name).join('、')} 都是 ${maxPoints} 点`],
     };
   }
 
@@ -273,6 +296,7 @@ function checkRoundEnd(state: GameState): GameState {
     phase: 'roundover',
     winner: winners[0].id,
     message: `本轮结束！${winners[0].name} 以 ${maxPoints} 点获胜！`,
+    log: [...state.log, `本轮结束！${winners[0].name} 以 ${maxPoints} 点获胜`],
   });
 }
 
@@ -286,6 +310,7 @@ function checkWinCondition(state: GameState): GameState {
       phase: 'gameover',
       winner: winner.id,
       message: `${winner.name} 获胜！`,
+      log: [...state.log, `游戏结束！${winner.name} 是最后的幸存者，获胜！`],
     };
     return checkSpyBonus(finalState);
   }
@@ -300,6 +325,7 @@ function checkWinCondition(state: GameState): GameState {
 
 function handleGuard(state: GameState, targetId: number, guess: CardName): GameState {
   if (guess === 'Guard') {
+    console.log(`[游戏逻辑] Guard猜测无效: 不能猜Guard`);
     return { ...state, message: '不能猜测守卫' };
   }
 
@@ -308,14 +334,23 @@ function handleGuard(state: GameState, targetId: number, guess: CardName): GameS
   const target = newState.players.find(p => p.id === targetId);
 
   if (!target || target.isProtected || target.isEliminated) {
+    console.log(`[游戏逻辑] Guard无法命中: 目标无效或受保护`);
     return { ...newState, message: '无法对目标使用守卫' };
   }
 
+  console.log(`[游戏逻辑] Guard猜测: ${target.name}的手牌是${guess}，实际是${target.hand}`);
+
   if (target.hand === guess) {
-    const afterDiscard = { ...newState, discardPile: [...newState.discardPile, 'Guard'] as CardName[] };
+    const afterDiscard = {
+      ...newState,
+      discardPile: [...newState.discardPile, 'Guard'] as CardName[],
+      log: [...newState.log, `守卫猜中！${target.name} 的手牌是 ${guess}, 被淘汰`],
+    };
+    console.log(`[游戏逻辑] Guard猜测正确! ${target.name}被淘汰`);
     return eliminatePlayer(checkPrincessDiscard(afterDiscard, targetId), targetId, `${current.name}守卫猜中${CARD_NAMES_CN[guess]}`);
   }
 
+  console.log(`[游戏逻辑] Guard猜测错误`);
   return {
     ...newState,
     discardPile: [...newState.discardPile, 'Guard'] as CardName[],
@@ -330,9 +365,11 @@ function handlePriest(state: GameState, targetId: number): GameState {
   const target = newState.players.find(p => p.id === targetId);
 
   if (!target || target.isProtected || target.isEliminated) {
+    console.log(`[游戏逻辑] Priest无法查看: 目标无效或受保护`);
     return { ...newState, message: '无法查看此玩家' };
   }
 
+  console.log(`[游戏逻辑] Priest ${current.name} 查看 ${target.name} 的手牌: ${target.hand}`);
   return {
     ...newState,
     discardPile: [...newState.discardPile, 'Priest'] as CardName[],
@@ -347,31 +384,45 @@ function handleBaron(state: GameState, targetId: number): GameState {
   const target = newState.players.find(p => p.id === targetId);
 
   if (!target || target.isProtected || target.isEliminated) {
+    console.log(`[游戏逻辑] Baron无法使用: 目标无效或受保护`);
     return { ...newState, message: '无法对此玩家使用男爵' };
   }
 
   const currentPoints = getCardInfo(current.hand!).points;
   const targetPoints = getCardInfo(target.hand!).points;
+  console.log(`[游戏逻辑] Baron ${current.name} vs ${target.name}: ${currentPoints} vs ${targetPoints}`);
 
   if (targetPoints < currentPoints) {
-    const afterBaron = { ...newState, discardPile: [...newState.discardPile, 'Baron'] as CardName[] };
+    console.log(`[游戏逻辑] Baron ${current.name}获胜，${target.name}被淘汰`);
+    const afterBaron = {
+      ...newState,
+      discardPile: [...newState.discardPile, 'Baron'] as CardName[],
+      log: [...newState.log, `${current.name}与${target.name}男爵对比：${currentPoints} vs ${targetPoints}, ${current.name}获胜`],
+    };
     return eliminatePlayer(checkPrincessDiscard(afterBaron, targetId), targetId, `${current.name}男爵对比获胜${currentPoints}vs${targetPoints}`);
   } else if (targetPoints > currentPoints) {
-    const afterBaron = { ...newState, discardPile: [...newState.discardPile, 'Baron'] as CardName[] };
+    console.log(`[游戏逻辑] Baron ${target.name}获胜，${current.name}被淘汰`);
+    const afterBaron = {
+      ...newState,
+      discardPile: [...newState.discardPile, 'Baron'] as CardName[],
+      log: [...newState.log, `${current.name}与${target.name}男爵对比：${currentPoints} vs ${targetPoints}, ${current.name}落败`],
+    };
     return eliminatePlayer(checkPrincessDiscard(afterBaron, current.id), current.id, `${current.name}男爵对比失败${currentPoints}vs${targetPoints}`);
   }
 
+  console.log(`[游戏逻辑] Baron平局`);
   return {
     ...newState,
     discardPile: [...newState.discardPile, 'Baron'] as CardName[],
     message: `男爵对比: 平局！(${currentPoints} vs ${targetPoints})`,
-    log: [...newState.log, `${current.name}与${target.name}男爵对比平局`],
+    log: [...newState.log, `${current.name}与${target.name}男爵对比平局：${currentPoints} vs ${targetPoints}`],
   };
 }
 
 function handleHandmaid(state: GameState): GameState {
   const newState = { ...state, players: [...state.players] };
   const current = newState.players[state.currentPlayerIndex];
+  console.log(`[游戏逻辑] Handmaid ${current.name} 发动保护`);
   current.isProtected = true;
 
   return {
@@ -395,6 +446,8 @@ function handlePrince(state: GameState, targetId: number): GameState {
   const oldHand = target.hand;
   let newHand: CardName | null = null;
 
+  console.log(`[游戏逻辑] Prince ${current.name} 目标: ${target.name}, 旧手牌: ${oldHand}`);
+
   // 判断是否是唯一存活玩家（除自己外）
   const otherPlayers = newState.players.filter(p => p.id !== current.id && !p.isEliminated);
   const isLastPlayer = otherPlayers.length === 1 && otherPlayers[0].id === targetId;
@@ -402,10 +455,14 @@ function handlePrince(state: GameState, targetId: number): GameState {
   if (isLastPlayer && newState.removedCard) {
     // 最后玩家抽开局移出的牌
     newHand = newState.removedCard;
+    console.log(`[游戏逻辑] Prince ${target.name} 抽移除的牌: ${newHand}`);
     newState = { ...newState, removedCard: null };
   } else if (newState.deck.length > 0) {
     // 正常从牌堆抽
     newHand = newState.deck.pop()!;
+    console.log(`[游戏逻辑] Prince ${target.name} 从牌堆抽: ${newHand}`);
+  } else {
+    console.log(`[游戏逻辑] Prince 牌堆空`);
   }
 
   target.hand = newHand;
@@ -430,7 +487,7 @@ function handlePrince(state: GameState, targetId: number): GameState {
     ...newState,
     discardPile,
     message: `${target.name}弃置手牌并抽取新牌`,
-    log: [...newState.log, `${current.name}使用王子使${target.name}弃置了${oldHand}`],
+    log: [...newState.log, `${current.name}使用王子：${target.name}弃置 ${oldHand}, 抽到 ${newHand ?? '无牌, 淘汰'}`],
   };
 }
 
@@ -446,6 +503,8 @@ function handleChancellor(state: GameState): GameState {
 
   const choices: CardName[] = [oldHand, draw1, draw2].filter((c): c is CardName => c !== null);
   const order = choices.map((_, i) => i);
+
+  console.log(`[游戏逻辑] Chancellor ${current.name} 发动，选择: ${choices}`);
 
   return {
     ...newState,
@@ -480,6 +539,7 @@ export function chancellorChooseCard(state: GameState, keptCard: CardName): Game
     handChoicesOrder: [],
     keptCard: null,
     message: `${current.name} 保留了 ${keptCard}`,
+    log: [...newState.log, `${current.name} 大臣选择保留 ${CARD_NAMES_CN[keptCard] || keptCard}, 其余 ${otherCards.length} 张放回牌堆底`],
   };
 }
 
@@ -496,6 +556,8 @@ function handleKing(state: GameState, targetId: number): GameState {
   current.hand = target.hand;
   target.hand = temp;
 
+  console.log(`[游戏逻辑] King ${current.name} 与 ${target.name} 交换手牌: ${current.name}现在有${current.hand}, ${target.name}现在有${target.hand}`);
+
   return {
     ...newState,
     discardPile: [...newState.discardPile, 'King'] as CardName[],
@@ -506,6 +568,7 @@ function handleKing(state: GameState, targetId: number): GameState {
 
 function handleCountess(state: GameState): GameState {
   const current = state.players[state.currentPlayerIndex];
+  console.log(`[游戏逻辑] Countess ${current.name} 发动`);
   return {
     ...state,
     discardPile: [...state.discardPile, 'Countess'] as CardName[],
@@ -530,6 +593,12 @@ export function playCard(state: GameState, cardName: CardName, targetId?: number
   if (currentPlayer.type === 'human' && currentPlayer.hand !== cardName) {
     return { ...state, message: '你必须出到手牌中的牌' };
   }
+
+  const target = targetId !== undefined ? state.players.find(p => p.id === targetId) : undefined;
+  const targetName = target ? target.name : (targetId !== undefined ? `ID${targetId}` : '无');
+  const guessStr = guess ? `, 猜测 ${guess}` : '';
+  const playLog = `${currentPlayer.name} 打出 ${cardName}${cardName === 'Guard' ? ` 目标 ${targetName}${guessStr}` : (targetName !== '无' ? ` 目标 ${targetName}` : '')}`;
+  state = { ...state, log: [...state.log, playLog] };
 
   if (currentPlayer.type === 'human' && cardName !== 'Countess' && checkCountessRequired(state)) {
     return { ...state, message: '拥有王子或国王时必须出伯爵夫人' };
@@ -629,6 +698,7 @@ export function advanceToNextTurn(state: GameState): GameState {
     waitingForNextTurn: false,
     phase: 'playing',
     message: `${nextPlayer.name}的回合 - 抽牌`,
+    log: [...state.log, `轮到 ${nextPlayer.name} 行动`],
   };
 }
 

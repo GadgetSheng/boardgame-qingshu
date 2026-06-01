@@ -25,37 +25,30 @@ export default function Game({ aiTypes, onRestart }: GameProps) {
     initGame,
     executeAITurn,
     selectedCard,
+    drawForCurrentPlayer,
   } = useGameStore();
 
   useEffect(() => {
     initGame(aiTypes);
   }, [initGame, aiTypes]);
 
-  // 自动抽牌
+  // 自动抽牌 + AI触发
   useEffect(() => {
     if (!gameState) return;
     const currentPlayer = gameState.players[gameState.currentPlayerIndex];
 
-    if (gameState.phase === 'select-target' || gameState.waitingForNextTurn) return;
+    if (gameState.phase !== 'playing') return;
+    if (gameState.waitingForNextTurn) return;
     if (gameState.handChoices.length > 0) return;
     if (gameState.deck.length === 0) return;
 
-    if (currentPlayer.type !== 'human' && gameState.phase === 'playing') {
+    if (currentPlayer.type === 'human') {
+      drawForCurrentPlayer();
+    } else {
       const timeout = setTimeout(() => executeAITurn(), 1200);
       return () => clearTimeout(timeout);
     }
-  }, [gameState?.currentPlayerIndex, gameState?.phase, executeAITurn, gameState?.deck.length]);
-
-  // AI回合自动执行
-  useEffect(() => {
-    if (!gameState) return;
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-
-    if (currentPlayer.type !== 'human' && !gameState.waitingForNextTurn && gameState.phase === 'playing') {
-      const timeout = setTimeout(() => executeAITurn(), 1200);
-      return () => clearTimeout(timeout);
-    }
-  }, [gameState?.currentPlayerIndex, gameState?.phase]);
+  }, [gameState?.currentPlayerIndex, gameState?.phase, executeAITurn, gameState?.deck.length, drawForCurrentPlayer]);
 
   if (!gameState) {
     return <div className="min-h-screen flex items-center justify-center text-2xl text-amber-900">加载中...</div>;

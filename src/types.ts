@@ -70,7 +70,7 @@ export interface Player {
   tokens: number;
 }
 
-export type GamePhase = 'setup' | 'select-card' | 'select-target' | 'playing' | 'roundover' | 'gameover';
+export type GamePhase = 'setup' | 'select-card' | 'select-target' | 'playing' | 'roundover' | 'chanllenge' | 'gameover';
 
 export interface GameState {
   players: Player[];
