@@ -75,14 +75,7 @@ export function initGame(
   const firstRemoved = deck.pop();
   if (firstRemoved) removed.push(firstRemoved);
 
-  // 2 人局额外明抽 3 张移出（公开）
   const removedPublic: Card[] = [];
-  if (totalPlayers === 2) {
-    for (let i = 0; i < 3; i++) {
-      const c = deck.pop();
-      if (c) removedPublic.push(c);
-    }
-  }
 
   // 发初始手牌
   for (const p of players) {
@@ -476,8 +469,13 @@ function resolvePrinceOn(state: GameState, targetId: number) {
   if (newCard) {
     target.hand.push(newCard);
     pushLog(state, [], `${target.name} 摸到 [${newCard.name}]。`);
+  } else if (state.removed.length > 0) {
+    // 特殊规则：王子是最后一张牌打出时，从移除堆拿
+    const fromRemoved = state.removed.pop()!;
+    target.hand.push(fromRemoved);
+    pushLog(state, [], `牌库已空。${target.name} 从移除堆拿 [${fromRemoved.name}]。`);
   } else {
-    pushLog(state, [], `牌库已空，${target.name} 无牌可摸。`);
+    pushLog(state, [], `牌库与移除堆都空，${target.name} 无牌可摸。`);
   }
 }
 
@@ -627,18 +625,11 @@ function startNextRound(state: GameState) {
     ...state.removedPublic,
   ];
   let deck = shuffle(allCards);
-  // 移除 1 张
+  // 移除 1 张（暗）
   state.removed = [];
   const r = deck.pop();
   if (r) state.removed.push(r);
-  // 2 人局明抽
   state.removedPublic = [];
-  if (state.players.length === 2) {
-    for (let i = 0; i < 3; i++) {
-      const c = deck.pop();
-      if (c) state.removedPublic.push(c);
-    }
-  }
   state.deck = deck;
   state.discard = [];
   // 重置玩家

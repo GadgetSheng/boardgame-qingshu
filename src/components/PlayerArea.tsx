@@ -42,7 +42,7 @@ export function PlayerArea({
         {discards.length > 0 && (
           <div className="mt-1 flex gap-1 flex-wrap">
             {discards.map((c) => (
-              <CardView key={c.id} card={c} size="sm" dim />
+              <CardView key={c.id} card={c} size="sm" forceFaceUp />
             ))}
           </div>
         )}
@@ -124,7 +124,7 @@ export function PlayerArea({
             )}
           >
             {discards.map((c) => (
-              <CardView key={c.id} card={c} size="sm" dim />
+              <CardView key={c.id} card={c} size="sm" forceFaceUp />
             ))}
           </div>
         </div>
