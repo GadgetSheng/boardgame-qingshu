@@ -12,7 +12,7 @@ export function buildMemory(state: GameState): SpyMemory {
   }
   const allCards: Card[] = [
     ...state.deck,
-    ...state.discard,
+    ...state.discard.map((d) => d.card),
     ...state.removed,
     ...state.removedPublic,
     ...state.players.flatMap((p) => p.hand),
@@ -83,12 +83,26 @@ export function aiGuardTarget(state: GameState, playerId: number): number | null
   return candidates[Math.floor(Math.random() * candidates.length)].id;
 }
 
-// 卫兵猜牌
-export function aiGuardGuess(state: GameState, _playerId: number, targetId: number): CardName {
-  const target = state.players[targetId];
-  const hand = target.hand[0];
-  if (hand) return hand.name; // 全明牌
-  return '卫兵';
+// 卫兵猜牌 (盲猜：基于公开弃牌/移除推断剩余分布，按权重采样)
+export function aiGuardGuess(state: GameState, _playerId: number, _targetId: number): CardName {
+  const publicRemoved: Partial<Record<CardName, number>> = {};
+  for (const c of [...state.discard.map((d) => d.card), ...state.removed, ...state.removedPublic]) {
+    publicRemoved[c.name] = (publicRemoved[c.name] ?? 0) + 1;
+  }
+  const candidates: Array<{ name: CardName; weight: number }> = [];
+  for (const def of CARD_DEFS) {
+    if (def.name === '卫兵') continue;
+    const remaining = def.count - (publicRemoved[def.name] ?? 0);
+    if (remaining > 0) candidates.push({ name: def.name, weight: remaining });
+  }
+  if (candidates.length === 0) return '王子';
+  const total = candidates.reduce((s, c) => s + c.weight, 0);
+  let r = Math.random() * total;
+  for (const c of candidates) {
+    r -= c.weight;
+    if (r <= 0) return c.name;
+  }
+  return candidates[0].name;
 }
 
 export function aiPriestTarget(state: GameState, playerId: number): number | null {
@@ -124,7 +138,8 @@ export function aiPrinceTarget(state: GameState, playerId: number): number | nul
   return pool[Math.floor(Math.random() * pool.length)].id;
 }
 
-// 大臣：返回要放牌库底的 2 张（按玩家选顺序：[最底, 次底]）
+// 大臣：返回要放牌库底的牌（按玩家选顺序：[最底, 次底, ...]）
+// 数量 = pool.length - 1（牌库只够抽 1 张时只放回 1 张）
 export function aiChancellorReturn(
   state: GameState,
   playerId: number,
@@ -132,19 +147,13 @@ export function aiChancellorReturn(
 ): Card[] {
   const p = state.players[playerId];
   const existing = p.hand[0]; // 玩家原本的手牌
-  // 三张：[existing, drawn[0], drawn[1]]，留 1 张
   const all = [existing, ...drawn].filter((c): c is Card => !!c);
-  // 优先级：留最强（公主>伯爵夫人>国王>大臣>王子>侍女>男爵>神父>卫兵>间谍）
-  // 但若手牌含公主，留公主
+  if (all.length <= 1) return [];
+  // 优先级：留最强（公主 > 其他），但若手牌含公主，留公主
   const princess = all.find((c) => c.name === '公主');
-  if (princess) {
-    const others = all.filter((c) => c.id !== princess.id);
-    return [others[0], others[1]];
-  }
-  // 否则：留最强，弃最弱 2 张
-  const sorted = [...all].sort((a, b) => b.value - a.value);
-  const keep = sorted[0];
+  const keep = princess ?? [...all].sort((a, b) => b.value - a.value)[0];
+  // 其余按"最弱优先放最底"排序
   const rest = all.filter((c) => c.id !== keep.id);
-  // rest 顺序：[最弱, 次弱]，玩家选择把最弱放最底
-  return [rest[0], rest[1]];
+  const sortedRest = [...rest].sort((a, b) => a.value - b.value);
+  return sortedRest;
 }

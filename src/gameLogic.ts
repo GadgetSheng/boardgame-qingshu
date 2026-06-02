@@ -183,7 +183,7 @@ export function playCard(state: GameState, cardId: string): GameState {
   if (!canPlayCard(state, card)) return state;
 
   p.hand = p.hand.filter((c) => c.id !== cardId);
-  state.discard.push(card);
+  state.discard.push({ card, playerId: p.id });
 
   const events: LogEvent[] = [{ kind: 'PLAY', player: p.id, card }];
   pushLog(state, events, `[回合 ${state.round}·${state.turn}] ${p.name} 打出 [${card.name}]`);
@@ -285,21 +285,26 @@ export function chancellorReturnCards(
   state: GameState,
   bottomOrder: Card[],
 ): GameState {
-  // bottomOrder: 放牌库底的 2 张（数组顺序 = 自下而上）
+  // bottomOrder: 放牌库底的牌（数组顺序 = 自下而上）
+  // pool = 原手牌 + 抽到的，pool.length - 1 张放回底部，1 张留下
   const drawn = state.pending.chancellorDrawn ?? [];
-  if (bottomOrder.length !== 2) return state;
-  if (bottomOrder.some((c) => !drawn.find((d) => d.id === c.id))) return state;
-  // 牌库底 = 数组头部。bottomOrder[0] = 最底，bottomOrder[1] = 次底
-  state.deck = [...bottomOrder, ...state.deck];
-  // 玩家手牌 = drawn 中未放回底部的牌
-  const keep = drawn.find((c) => !bottomOrder.find((b) => b.id === c.id));
   const p = currentPlayer(state);
+  const existing = p.hand[0] ?? null;
+  const pool: Card[] = existing ? [existing, ...drawn] : drawn;
+  const valid = bottomOrder.filter((c): c is Card => !!c);
+  if (valid.length !== pool.length - 1) return state;
+  if (valid.some((c) => !pool.find((d) => d.id === c.id))) return state;
+  if (new Set(valid.map((c) => c.id)).size !== valid.length) return state;
+  // 牌库底 = 数组头部。valid[0] = 最底，valid[1] = 次底
+  state.deck = [...valid, ...state.deck];
+  // 玩家手牌 = pool 中未放回底部的牌
+  const keep = pool.find((c) => !valid.find((b) => b.id === c.id)) ?? null;
   p.hand = keep ? [keep] : [];
   state.pending.chancellorDrawn = undefined;
   pushLog(
     state,
     [],
-    `[大臣] ${p.name} 留 [${keep?.name ?? '空'}]，把 [${bottomOrder.map((c) => c.name).join(' / ')}] 放回牌库底。`,
+    `[大臣] ${p.name} 留 [${keep?.name ?? '空'}]，把 [${valid.map((c) => c.name).join(' / ')}] 放回牌库底。`,
   );
   advanceTurn(state);
   return state;
@@ -310,7 +315,9 @@ function eliminatePlayer(state: GameState, playerId: number, reason: string, car
   if (!p.alive) return;
   p.alive = false;
   // 公主弃掉/被王子弃 → usedSpy 不算
-  state.discard.push(...p.hand);
+  for (const c of p.hand) {
+    state.discard.push({ card: c, playerId });
+  }
   const handNames = p.hand.map((c) => c.name).join(' / ');
   p.hand = [];
   state.log.push({
@@ -457,7 +464,7 @@ function resolvePrinceOn(state: GameState, targetId: number) {
   const target = state.players[targetId];
   const discarded = target.hand[0];
   if (discarded) {
-    state.discard.push(discarded);
+    state.discard.push({ card: discarded, playerId: targetId });
     target.hand = [];
     pushLog(state, [], `${target.name} 弃掉 [${discarded.name}]。`);
     if (discarded.name === '公主') {
@@ -615,7 +622,7 @@ function startNextRound(state: GameState) {
   // 重置牌
   const allCards = [
     ...state.deck,
-    ...state.discard,
+    ...state.discard.map((d) => d.card),
     ...state.removed,
     ...state.removedPublic,
   ];

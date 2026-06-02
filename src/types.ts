@@ -1,8 +1,8 @@
 // 牌型 + 数值定义 (2019 扩展版)
 export const CARD_DEFS = [
-  { name: '公主' as const, value: 8, count: 1, color: 'red' },
-  { name: '伯爵夫人' as const, value: 7, count: 1, color: 'red' },
-  { name: '国王' as const, value: 6, count: 1, color: 'yellow' },
+  { name: '公主' as const, value: 9, count: 1, color: 'red' },
+  { name: '伯爵夫人' as const, value: 8, count: 1, color: 'red' },
+  { name: '国王' as const, value: 7, count: 1, color: 'yellow' },
   { name: '大臣' as const, value: 6, count: 2, color: 'yellow' },
   { name: '王子' as const, value: 5, count: 2, color: 'orange' },
   { name: '侍女' as const, value: 4, count: 2, color: 'green' },
@@ -71,10 +71,15 @@ export interface PendingState {
   priestTarget?: number;
 }
 
+export interface DiscardedCard {
+  card: Card;
+  playerId: number; // 这张牌从哪个玩家出/被弃
+}
+
 export interface GameState {
   players: Player[];
   deck: Card[]; // 牌库顶 = 数组末尾（pop）
-  discard: Card[]; // 弃牌堆
+  discard: DiscardedCard[]; // 弃牌堆（带玩家归属）
   removed: Card[]; // 开局移除 + 2人局明抽 3 张
   currentPlayerIndex: number;
   turn: number;
