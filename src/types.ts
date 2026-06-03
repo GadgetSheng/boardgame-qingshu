@@ -1,15 +1,15 @@
 // 牌型 + 数值定义 (2019 扩展版)
 export const CARD_DEFS = [
-  { name: '公主' as const, value: 9, count: 1, color: 'red' },
-  { name: '伯爵夫人' as const, value: 8, count: 1, color: 'red' },
-  { name: '国王' as const, value: 7, count: 1, color: 'yellow' },
-  { name: '大臣' as const, value: 6, count: 2, color: 'yellow' },
-  { name: '王子' as const, value: 5, count: 2, color: 'orange' },
-  { name: '侍女' as const, value: 4, count: 2, color: 'green' },
-  { name: '男爵' as const, value: 3, count: 2, color: 'blue' },
-  { name: '神父' as const, value: 2, count: 2, color: 'blue' },
-  { name: '卫兵' as const, value: 1, count: 6, color: 'gray' },
-  { name: '间谍' as const, value: 0, count: 2, color: 'gray' },
+  { name: '公主' as const, value: 9, count: 1, color: 'red', desc: '打出时必须弃牌。若被王子弃也出局。' },
+  { name: '伯爵夫人' as const, value: 8, count: 1, color: 'red', desc: '无效果。手牌含国王/王子时强制出。' },
+  { name: '国王' as const, value: 7, count: 1, color: 'yellow', desc: '与任意玩家交换手牌。' },
+  { name: '大臣' as const, value: 6, count: 2, color: 'yellow', desc: '抽2张，选1张留手牌，其余放牌库底。' },
+  { name: '王子' as const, value: 5, count: 2, color: 'orange', desc: '指定目标弃手牌摸新牌，可指定自己。' },
+  { name: '侍女' as const, value: 4, count: 2, color: 'green', desc: '免疫任何效果直到下回合。' },
+  { name: '男爵' as const, value: 3, count: 2, color: 'blue', desc: '与玩家比手牌，低者出局，平手无事。' },
+  { name: '神父' as const, value: 2, count: 2, color: 'blue', desc: '查看任意玩家手牌。' },
+  { name: '卫兵' as const, value: 1, count: 6, color: 'gray', desc: '指定玩家并猜其手牌，猜中则对方出局。' },
+  { name: '间谍' as const, value: 0, count: 2, color: 'gray', desc: '无即时效果。局末存活可得+1标记。' },
 ] as const;
 
 export type CardName = (typeof CARD_DEFS)[number]['name'];
@@ -60,6 +60,7 @@ export type GamePhase =
   | 'KING_TARGET'
   | 'BARON_TARGET'
   | 'PRIEST_TARGET'
+  | 'PRIEST_REVEAL' // 神父：人类查看后翻牌动画
   | 'GAME_OVER';
 
 export interface PendingState {
@@ -69,6 +70,7 @@ export interface PendingState {
   kingTarget?: number;
   baronTarget?: number;
   priestTarget?: number;
+  priestRevealed?: { targetId: number; card: Card | null };
 }
 
 export interface DiscardedCard {

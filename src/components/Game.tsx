@@ -194,6 +194,15 @@ export function Game() {
         />
       )}
 
+      {/* 神父：翻牌动画 */}
+      {state.phase === 'PRIEST_REVEAL' && state.pending.priestRevealed && (
+        <PriestRevealDialog
+          targetName={state.players[state.pending.priestRevealed.targetId]?.name ?? '?'}
+          card={state.pending.priestRevealed.card}
+          onDismiss={() => actions.priestRevealDismissAction()}
+        />
+      )}
+
       {/* 卫兵 UI：选目标后猜牌 */}
       {guardPhase && isHumanTurn && state.pending.guardTarget != null && (
         <GuardGuessDialog
@@ -336,4 +345,95 @@ function Modal({ children }: { children: React.ReactNode }) {
       </div>
     </div>
   );
+}
+
+function PriestRevealDialog({
+  targetName,
+  card,
+  onDismiss,
+}: {
+  targetName: string;
+  card: Card | null;
+  onDismiss: () => void;
+}) {
+  // 动画时序：0ms 背面 → 350ms 翻到正面 → 2400ms 翻回背面 → 3000ms 自动关闭
+  const [flipped, setFlipped] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setFlipped(true), 350);
+    const t2 = setTimeout(() => setFlipped(false), 2400);
+    const t3 = setTimeout(() => {
+      setClosing(true);
+      onDismiss();
+    }, 3000);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+      clearTimeout(t3);
+    };
+  }, [onDismiss]);
+
+  const colorClass = card ? cardColorClass(card.name) : 'from-slate-600 to-slate-800 border-slate-400';
+
+  return (
+    <div
+      className={`fixed inset-0 bg-black/70 backdrop-blur flex flex-col items-center justify-center z-50 p-6 transition-opacity duration-300 ${
+        closing ? 'opacity-0' : 'opacity-100'
+      }`}
+      onClick={() => {
+        setClosing(true);
+        onDismiss();
+      }}
+    >
+      <h2 className="text-2xl font-bold text-amber-300 mb-2">
+        神父查看 {targetName} 的手牌
+      </h2>
+      <p className="text-sm text-slate-300 mb-6">点击空白处关闭</p>
+
+      <div className="[perspective:1000px]">
+        <div
+          className="relative w-40 h-56 [transform-style:preserve-3d] transition-transform duration-700 ease-out"
+          style={{ transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+        >
+          {/* 背面 */}
+          <div className="absolute inset-0 rounded-xl border-2 bg-gradient-to-br from-indigo-700 to-indigo-900 border-indigo-400 flex items-center justify-center text-amber-300 font-bold shadow-2xl [backface-visibility:hidden]">
+            <div className="flex flex-col items-center gap-1">
+              <div className="text-5xl drop-shadow">❀</div>
+              <div className="text-xs tracking-widest opacity-80">LOVE LETTER</div>
+            </div>
+          </div>
+          {/* 正面 */}
+          <div
+            className={`absolute inset-0 rounded-xl border-2 bg-gradient-to-br ${colorClass} flex flex-col items-center justify-between p-3 shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]`}
+          >
+            {card ? (
+              <>
+                <div className="text-4xl font-bold text-white drop-shadow">{card.value}</div>
+                <div className="text-white font-bold text-xl text-center drop-shadow">
+                  {card.name}
+                </div>
+                <div className="text-white text-xs opacity-80">{card.value} 点</div>
+              </>
+            ) : (
+              <div className="text-white text-lg my-auto">手牌为空</div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function cardColorClass(name: CardName): string {
+  const def = CARD_DEFS.find((d) => d.name === name);
+  const map: Record<string, string> = {
+    red: 'from-rose-600 to-rose-800 border-rose-400',
+    yellow: 'from-amber-500 to-amber-700 border-amber-300',
+    orange: 'from-orange-500 to-orange-700 border-orange-300',
+    green: 'from-emerald-500 to-emerald-700 border-emerald-300',
+    blue: 'from-sky-500 to-sky-700 border-sky-300',
+    gray: 'from-slate-500 to-slate-700 border-slate-300',
+  };
+  return map[def?.color ?? 'gray'] ?? map.gray!;
 }

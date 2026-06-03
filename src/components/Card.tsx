@@ -2,6 +2,11 @@ import clsx from 'clsx';
 import type { Card as CardType } from '../types';
 import { CARD_DEFS } from '../types';
 
+const CARD_INFO: Record<string, { desc: string }> = CARD_DEFS.reduce(
+  (acc, def) => ({ ...acc, [def.name]: { desc: (def as { desc: string }).desc } }),
+  {} as Record<string, { desc: string }>,
+);
+
 const COLOR_MAP: Record<string, string> = {
   red: 'from-rose-600 to-rose-800 border-rose-400',
   yellow: 'from-amber-500 to-amber-700 border-amber-300',
@@ -60,26 +65,33 @@ export function Card({
   const def = CARD_DEFS.find((d) => d.name === card.name);
   const colorClass = COLOR_MAP[def?.color ?? 'gray'];
 
-  // 玩家自己手牌 / 公开移除：直接正面，无翻牌
+  // 玩家自己手牌：正面，hover 显示功能介绍
   if (forceFaceUp) {
+    const info = CARD_INFO[card.name];
     return (
-      <div
-        onClick={onClick}
-        className={clsx(
-          'rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between p-1 shadow-md transition-all',
-          colorClass,
-          sizeClass,
-          onClick && 'cursor-pointer hover:scale-105 hover:shadow-xl',
-          selected && 'ring-4 ring-amber-400 scale-105',
-          dim && 'opacity-40 grayscale',
-          className,
-        )}
-      >
-        <div className="text-2xl font-bold text-white drop-shadow">{card.value}</div>
-        <div className="text-white font-bold text-center leading-tight drop-shadow">
-          {card.name}
+      <div className={clsx('relative group', sizeClass)} style={{ display: 'inline-block' }}>
+        <div
+          onClick={onClick}
+          className={clsx(
+            'rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between p-1 shadow-md transition-all w-full h-full',
+            colorClass,
+            onClick && 'cursor-pointer hover:scale-105 hover:shadow-xl',
+            selected && 'ring-4 ring-amber-400 scale-105',
+            dim && 'opacity-40 grayscale',
+            className,
+          )}
+        >
+          <div className="text-2xl font-bold text-white drop-shadow">{card.value}</div>
+          <div className="text-white font-bold text-center leading-tight drop-shadow">
+            {card.name}
+          </div>
+          <div className="text-white text-[10px] opacity-70">{card.value} 点</div>
         </div>
-        <div className="text-white text-[10px] opacity-70">{card.value} 点</div>
+        {info && (
+          <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-900 border border-amber-500/60 rounded-lg p-2 text-xs text-slate-200 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-normal">
+            {info.desc}
+          </div>
+        )}
       </div>
     );
   }

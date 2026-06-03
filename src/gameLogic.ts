@@ -288,8 +288,9 @@ export function chancellorReturnCards(
   if (valid.length !== pool.length - 1) return state;
   if (valid.some((c) => !pool.find((d) => d.id === c.id))) return state;
   if (new Set(valid.map((c) => c.id)).size !== valid.length) return state;
-  // 牌库底 = 数组头部。valid[0] = 最底，valid[1] = 次底
-  state.deck = [...valid, ...state.deck];
+  // 牌库底 = 数组头部。valid 已按"最弱优先放最底"排序（aiChancellorReturn 返回顺序）
+  // c0=最底, c1=次底... 所以 reverse 后再 prepend
+  state.deck = valid.slice().reverse().concat(state.deck);
   // 玩家手牌 = pool 中未放回底部的牌
   const keep = pool.find((c) => !valid.find((b) => b.id === c.id)) ?? null;
   p.hand = keep ? [keep] : [];
@@ -372,6 +373,20 @@ export function priestView(state: GameState, targetId: number): GameState {
     `${p.name} 神父查看 [${target.name}] 的手牌：[${card?.name ?? '无'}]。`,
   );
   state.pending.priestTarget = undefined;
+  // 人类施法：暂停进入翻牌动画阶段，等用户确认后再 advanceTurn
+  if (p.id === state.humanPlayerId) {
+    state.pending.priestRevealed = { targetId, card: card ?? null };
+    state.phase = 'PRIEST_REVEAL';
+    return state;
+  }
+  advanceTurn(state);
+  return state;
+}
+
+// 神父翻牌动画结束：推进回合
+export function priestRevealDismiss(state: GameState): GameState {
+  if (state.phase !== 'PRIEST_REVEAL') return state;
+  state.pending.priestRevealed = undefined;
   advanceTurn(state);
   return state;
 }
@@ -566,10 +581,11 @@ function endRound(
     for (const id of spyWinners) {
       const p = state.players[id];
       p.tokens += 1;
+      const aliveNote = p.alive ? '（存活）' : '（已出局）';
       state.log.push({
         id: ++state.logIdCounter,
         turn: state.turn,
-        text: `[间谍奖励] ${p.name} 获得 +1 标记。`,
+        text: `[间谍奖励] ${p.name} ${aliveNote}因使用间谍获得 +1 标记。`,
         events: [{ kind: 'SPY_BONUS', player: id, reason: '间谍奖励' }],
       });
     }

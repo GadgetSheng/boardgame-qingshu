@@ -9,6 +9,7 @@ import {
   playCard,
   playerDrawPhase,
   princeTarget,
+  priestRevealDismiss,
   priestView,
 } from '../gameLogic';
 import {
@@ -34,6 +35,7 @@ interface Actions {
   guardTargetAction: (targetId: number) => void;
   guardGuessAction: (targetId: number, guess: CardName) => void;
   chancellorReturnAction: (bottomOrder: Card[]) => void;
+  priestRevealDismissAction: () => void;
   runAI: () => void;
 }
 
@@ -98,6 +100,12 @@ export const useGameStore = create<{ state: GameState; actions: Actions }>((set,
       const s = get().state;
       if (s.phase !== 'CHANCELLOR_DISCARD') return;
       chancellorReturnCards(s, bottomOrder);
+      set({ state: { ...s } });
+    },
+    priestRevealDismissAction() {
+      const s = get().state;
+      if (s.phase !== 'PRIEST_REVEAL') return;
+      priestRevealDismiss(s);
       set({ state: { ...s } });
     },
     runAI() {
