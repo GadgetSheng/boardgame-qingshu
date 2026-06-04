@@ -1,7 +1,7 @@
 // 牌型 + 数值定义 (2019 扩展版)
 export const CARD_DEFS = [
   { name: '公主' as const, value: 9, count: 1, color: 'red', desc: '打出时必须弃牌。若被王子弃也出局。' },
-  { name: '伯爵夫人' as const, value: 8, count: 1, color: 'red', desc: '无效果。手牌含国王/王子时强制出。' },
+  { name: '女伯爵' as const, value: 8, count: 1, color: 'red', desc: '无效果。手牌含国王/王子时强制出。' },
   { name: '国王' as const, value: 7, count: 1, color: 'yellow', desc: '与任意玩家交换手牌。' },
   { name: '大臣' as const, value: 6, count: 2, color: 'yellow', desc: '抽2张，选1张留手牌，其余放牌库底。' },
   { name: '王子' as const, value: 5, count: 2, color: 'orange', desc: '指定目标弃手牌摸新牌，可指定自己。' },
@@ -61,6 +61,7 @@ export type GamePhase =
   | 'BARON_TARGET'
   | 'PRIEST_TARGET'
   | 'PRIEST_REVEAL' // 神父：人类查看后翻牌动画
+  | 'FINAL_REVEAL' // 牌库耗尽：所有存活玩家亮牌动画
   | 'GAME_OVER';
 
 export interface PendingState {
@@ -71,6 +72,7 @@ export interface PendingState {
   baronTarget?: number;
   priestTarget?: number;
   priestRevealed?: { targetId: number; card: Card | null };
+  finalReveal?: { winnerId: number; reason: string; tiedIds?: number[] };
 }
 
 export interface DiscardedCard {

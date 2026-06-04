@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useGameStore } from '../store/gameStore';
 import { GameHeader } from './GameHeader';
 import { GameLog } from './GameLog';
 import { GameOverModal } from './GameOverModal';
 import { PlayerArea } from './PlayerArea';
 import { TableCenter } from './TableCenter';
+import { TargetLine } from './TargetLine';
 import { mustPlayCountess } from '../gameLogic';
 import { CARD_DEFS } from '../types';
 import type { Card, CardName } from '../types';
@@ -31,6 +32,7 @@ export function Game() {
   // AI 自动行动
   useEffect(() => {
     if (state.phase === 'GAME_OVER') return;
+    if (state.phase === 'FINAL_REVEAL') return;
     if (currentPlayer.isHuman) return;
     const id = setTimeout(() => actions.runAI(), 800);
     return () => clearTimeout(id);
@@ -45,11 +47,15 @@ export function Game() {
     if (!isHumanTurn || state.phase !== 'CHOOSE_CARD') return new Set<string>();
     const ids = new Set<string>();
     for (const c of currentPlayer.hand) {
-      if (mustDiscard && c.name !== '伯爵夫人') continue;
+      if (mustDiscard && c.name !== '女伯爵') continue;
       ids.add(c.id);
     }
     return ids;
   }, [state, currentPlayer, isHumanTurn, mustDiscard]);
+
+  // 目标线：从当前出牌玩家 → 目标玩家
+  const pendingTargetId = state.pending.guardTarget ?? state.pending.priestTarget ?? state.pending.baronTarget ?? state.pending.kingTarget ?? state.pending.princeTarget;
+  const showTargetLine = !!pendingTargetId;
 
   const onPlayCard = (cardId: string) => {
     if (isHumanTurn) actions.playCardAction(cardId);
@@ -57,6 +63,7 @@ export function Game() {
 
   // 选目标阶段
   const targetMode = ['PRINCE_TARGET', 'KING_TARGET', 'BARON_TARGET', 'PRIEST_TARGET', 'GUARD_GUESS'].includes(state.phase);
+  const humanTargetMode = targetMode && (state.phase !== 'PRINCE_TARGET' ? state.players[0].id !== state.currentPlayerIndex : true);
 
   // 大臣选牌 UI
   const chancellorPhase = state.phase === 'CHANCELLOR_DISCARD';
@@ -67,8 +74,10 @@ export function Game() {
   // AI 行动
   const guardPhase = state.phase === 'GUARD_GUESS';
 
-  // 围坐席位分配：按出牌顺序顺时针，玩家固定在底
-  // 1-5 AI 时分配到 5 个固定槽位
+  // 玩家 DOM ref 映射（用于绘制目标线）
+  const slotRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // 围坐席位分配
   const aiPlayers = state.players.filter((p) => !p.isHuman);
   const seats: Record<string, typeof aiPlayers[number] | undefined> = {};
 
@@ -102,6 +111,19 @@ export function Game() {
     }
   }
 
+  // slot → playerId 映射
+  const slotToPlayerId: Record<string, number> = {};
+  for (const [slot, p] of Object.entries(seats)) {
+    if (p) slotToPlayerId[slot] = p.id;
+  }
+  slotToPlayerId['player'] = 0;
+
+  // 目标线动画（每次 pendingTargetId 变化重置）
+  const [lineKey, setLineKey] = useState(0);
+  useEffect(() => {
+    if (pendingTargetId != null) setLineKey((k) => k + 1);
+  }, [pendingTargetId]);
+
   const renderSeat = (slot: string) => {
     const p = seats[slot];
     if (!p) return <div className="w-[260px]" />; // 占位
@@ -112,8 +134,14 @@ export function Game() {
         width={260}
         facing={slot === 'left' || slot === 'right' ? 'side' : 'top'}
         onSelectPlayer={makeSelectHandler(p.id)}
-        targetMode={targetMode && p.id !== state.currentPlayerIndex}
+        targetMode={
+          targetMode &&
+          (state.phase !== 'PRINCE_TARGET'
+            ? p.id !== state.currentPlayerIndex
+            : true)
+        }
         discards={discardsByPlayer[p.id] ?? []}
+        elementRef={(el) => { slotRefs.current[slot] = el; }}
       />
     );
   };
@@ -136,8 +164,8 @@ export function Game() {
   return (
     <div className="h-screen flex flex-col">
       <GameHeader />
-      <div className="flex-1 flex min-h-0">
-        <div className="flex-1 grid grid-rows-[auto_1fr_auto] grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 min-h-0">
+      <div className="flex-1 flex min-h-0 relative">
+        <div className="flex-1 grid grid-rows-[auto_1fr_auto] grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 min-h-0 relative">
           {/* 顶排左 */}
           <div className="row-start-1 col-start-1 flex justify-center items-start">
             {renderSeat('top-left')}
@@ -161,6 +189,18 @@ export function Game() {
             <TableCenter />
           </div>
 
+          {/* 目标线 SVG（放 grid 内，覆盖所有 seat） */}
+          {showTargetLine && (
+            <TargetLine
+              key={lineKey}
+              containerClassName="absolute inset-0 pointer-events-none"
+              fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
+              toPlayerId={pendingTargetId}
+              slotRefs={slotRefs}
+              slotToPlayerId={slotToPlayerId}
+            />
+          )}
+
           {/* 右侧 */}
           <div className="row-start-2 col-start-3 flex items-center justify-end">
             {renderSeat('right')}
@@ -178,6 +218,9 @@ export function Game() {
               width={340}
               facing="bottom"
               discards={discardsByPlayer[state.players[0].id] ?? []}
+              elementRef={(el) => { slotRefs.current['player'] = el; }}
+              targetMode={humanTargetMode}
+              onSelectPlayer={makeSelectHandler(0)}
             />
           </div>
         </div>
@@ -200,6 +243,14 @@ export function Game() {
           targetName={state.players[state.pending.priestRevealed.targetId]?.name ?? '?'}
           card={state.pending.priestRevealed.card}
           onDismiss={() => actions.priestRevealDismissAction()}
+        />
+      )}
+
+      {/* 牌库耗尽：所有存活玩家亮牌 */}
+      {state.phase === 'FINAL_REVEAL' && (
+        <FinalRevealDialog
+          players={state.players}
+          onDismiss={() => actions.finalRevealAction()}
         />
       )}
 
@@ -413,7 +464,6 @@ function PriestRevealDialog({
                 <div className="text-white font-bold text-xl text-center drop-shadow">
                   {card.name}
                 </div>
-                <div className="text-white text-xs opacity-80">{card.value} 点</div>
               </>
             ) : (
               <div className="text-white text-lg my-auto">手牌为空</div>
@@ -436,4 +486,102 @@ function cardColorClass(name: CardName): string {
     gray: 'from-slate-500 to-slate-700 border-slate-300',
   };
   return map[def?.color ?? 'gray'] ?? map.gray!;
+}
+
+function FinalRevealDialog({
+  players,
+  onDismiss,
+}: {
+  players: { id: number; name: string; alive: boolean; hand: Card[] }[];
+  onDismiss: () => void;
+}) {
+  // 时序：0 背面 → 500ms 翻牌 → 3500ms 自动关闭
+  const [flipped, setFlipped] = useState(false);
+  const [closing, setClosing] = useState(false);
+
+  useEffect(() => {
+    const t1 = setTimeout(() => setFlipped(true), 500);
+    const t2 = setTimeout(() => {
+      setClosing(true);
+      onDismiss();
+    }, 3500);
+    return () => {
+      clearTimeout(t1);
+      clearTimeout(t2);
+    };
+  }, [onDismiss]);
+
+  const alive = players.filter((p) => p.alive);
+  const maxValue = Math.max(...alive.map((p) => p.hand[0]?.value ?? -1));
+  const isWinner = (p: { id: number; hand: Card[] }) => (p.hand[0]?.value ?? -1) === maxValue;
+
+  return (
+    <div
+      className={`fixed inset-0 bg-black/80 backdrop-blur flex flex-col items-center justify-center z-50 p-6 transition-opacity duration-300 ${
+        closing ? 'opacity-0' : 'opacity-100'
+      }`}
+      onClick={() => {
+        setClosing(true);
+        onDismiss();
+      }}
+    >
+      <h2 className="text-3xl font-bold text-amber-300 mb-2 drop-shadow-lg">
+        牌库耗尽 — 亮牌
+      </h2>
+      <p className="text-sm text-slate-300 mb-6">所有存活玩家同时亮出手牌</p>
+
+      <div
+        className="flex flex-wrap items-end justify-center gap-6 max-w-5xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {alive.map((p) => {
+          const card = p.hand[0] ?? null;
+          const winner = isWinner(p);
+          return (
+            <div key={p.id} className="flex flex-col items-center gap-2">
+              <div className="text-lg font-bold text-slate-100 drop-shadow">
+                {p.name}
+                {winner && (
+                  <span className="ml-2 text-amber-300 text-sm">★ 胜者</span>
+                )}
+              </div>
+              <div
+                className={`relative w-32 h-44 [transform-style:preserve-3d] transition-transform duration-700 ease-out`}
+                style={{ transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
+              >
+                {/* 背面 */}
+                <div className="absolute inset-0 rounded-xl border-2 bg-gradient-to-br from-indigo-700 to-indigo-900 border-indigo-400 flex items-center justify-center text-amber-300 font-bold shadow-2xl [backface-visibility:hidden]">
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="text-4xl drop-shadow">❀</div>
+                    <div className="text-[10px] tracking-widest opacity-80">LOVE LETTER</div>
+                  </div>
+                </div>
+                {/* 正面 */}
+                <div
+                  className={`absolute inset-0 rounded-xl border-2 bg-gradient-to-br ${
+                    card ? cardColorClass(card.name) : 'from-slate-600 to-slate-800 border-slate-400'
+                  } flex flex-col items-center justify-between p-3 shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)] ${
+                    winner ? 'ring-4 ring-amber-300 ring-offset-2 ring-offset-slate-900 animate-pulse' : ''
+                  }`}
+                >
+                  {card ? (
+                    <>
+                      <div className="text-3xl font-bold text-white drop-shadow">{card.value}</div>
+                      <div className="text-white font-bold text-base text-center drop-shadow">
+                        {card.name}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-white text-base my-auto">无牌</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <p className="text-xs text-slate-400 mt-6">点击空白处跳过</p>
+    </div>
+  );
 }

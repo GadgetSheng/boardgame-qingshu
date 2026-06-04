@@ -14,6 +14,7 @@ interface Props {
   facing?: 'top' | 'bottom' | 'side';
   width?: number;
   discards?: Card[];
+  elementRef?: (el: HTMLDivElement | null) => void;
 }
 
 export function PlayerArea({
@@ -28,10 +29,12 @@ export function PlayerArea({
   facing = 'top',
   width,
   discards = [],
+  elementRef,
 }: Props) {
   if (!player.alive) {
     return (
       <div
+        ref={elementRef}
         className="bg-slate-900/40 border border-slate-700 rounded-lg p-2 opacity-50"
         style={width ? { width } : undefined}
       >
@@ -56,6 +59,7 @@ export function PlayerArea({
 
   return (
     <div
+      ref={elementRef}
       onClick={isTargetable ? () => onSelectPlayer?.(player.id) : undefined}
       className={clsx(
         'rounded-lg p-2 border-2 transition-all',
@@ -109,7 +113,7 @@ export function PlayerArea({
                 onPlayCard && selectableCardIds?.has(c.id) ? () => onPlayCard(c.id) : undefined
               }
               selected={selectableCardIds?.has(c.id)}
-              dim={mustDiscard && c.name !== '伯爵夫人'}
+              dim={mustDiscard && c.name !== '女伯爵'}
             />
           ))
         )}
@@ -130,7 +134,7 @@ export function PlayerArea({
         </div>
       )}
       {mustDiscard && (
-        <div className="mt-1 text-[10px] text-rose-300">⚠ 强制出 [伯爵夫人]</div>
+        <div className="mt-1 text-[10px] text-rose-300">⚠ 强制出 [女伯爵]</div>
       )}
     </div>
   );

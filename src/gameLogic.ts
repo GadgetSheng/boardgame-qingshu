@@ -131,7 +131,7 @@ function otherAliveTargets(state: GameState, playerId: number): Player[] {
 export function mustPlayCountess(state: GameState): boolean {
   const p = currentPlayer(state);
   if (!p.alive) return false;
-  const hasCountess = p.hand.some((c) => c.name === '伯爵夫人');
+  const hasCountess = p.hand.some((c) => c.name === '女伯爵');
   if (!hasCountess) return false;
   const hasKingOrPrince = p.hand.some((c) => c.name === '国王' || c.name === '王子');
   return hasKingOrPrince;
@@ -141,7 +141,7 @@ export function canPlayCard(state: GameState, card: Card): boolean {
   if (state.phase !== 'CHOOSE_CARD') return false;
   const p = currentPlayer(state);
   if (!p.hand.find((c) => c.id === card.id)) return false;
-  if (mustPlayCountess(state) && card.name !== '伯爵夫人') return false;
+  if (mustPlayCountess(state) && card.name !== '女伯爵') return false;
   return true;
 }
 
@@ -189,7 +189,7 @@ export function playCard(state: GameState, cardId: string): GameState {
       eliminatePlayer(state, p.id, '打出公主', card);
       advanceTurn(state);
       return state;
-    case '伯爵夫人':
+    case '女伯爵':
       // 无效果
       pushLog(state, [], `[回合 ${state.round}] [${card.name}] 无效果。`);
       advanceTurn(state);
@@ -211,7 +211,6 @@ export function playCard(state: GameState, cardId: string): GameState {
     case '王子': {
       state.phase = 'PRINCE_TARGET';
       state.pending.princeTarget = undefined;
-      // 王子可指定自己，所以总能选到目标
       return state;
     }
     case '国王': {
@@ -288,9 +287,9 @@ export function chancellorReturnCards(
   if (valid.length !== pool.length - 1) return state;
   if (valid.some((c) => !pool.find((d) => d.id === c.id))) return state;
   if (new Set(valid.map((c) => c.id)).size !== valid.length) return state;
-  // 牌库底 = 数组头部。valid 已按"最弱优先放最底"排序（aiChancellorReturn 返回顺序）
-  // c0=最底, c1=次底... 所以 reverse 后再 prepend
-  state.deck = valid.slice().reverse().concat(state.deck);
+  // 牌库底 = 数组头部。valid 已按"最弱优先放最底"排序（c0=最底）
+  // 直接 prepend 即可，无需 reverse
+  state.deck = valid.concat(state.deck);
   // 玩家手牌 = pool 中未放回底部的牌
   const keep = pool.find((c) => !valid.find((b) => b.id === c.id)) ?? null;
   p.hand = keep ? [keep] : [];
@@ -525,18 +524,21 @@ export function advanceTurn(state: GameState) {
     return;
   }
   if (state.deck.length === 0) {
-    // 立即结算：本轮所有出牌结束后比牌
-    // 简化：本回合出牌后立即比牌
+    // 牌库耗尽：进入所有存活玩家亮牌动画阶段
     const sorted = [...alive].sort((a, b) => (b.hand[0]?.value ?? -1) - (a.hand[0]?.value ?? 0));
     const top = sorted[0];
     const tied = sorted.filter((p) => (p.hand[0]?.value ?? -1) === (top.hand[0]?.value ?? -1));
     if (tied.length === 1) {
-      endRound(state, top.id, '牌库耗尽，比牌胜出');
+      state.pending.finalReveal = { winnerId: top.id, reason: '牌库耗尽，比牌胜出' };
     } else {
-      // 平局：都算胜
-      endRound(state, -1, `牌库耗尽，平局（[${tied.map((p) => p.name).join(', ')}] 同胜）`, tied.map((p) => p.id));
-      return;
+      state.pending.finalReveal = {
+        winnerId: -1,
+        reason: `牌库耗尽，平局（[${tied.map((p) => p.name).join(', ')}] 同胜）`,
+        tiedIds: tied.map((p) => p.id),
+      };
     }
+    state.phase = 'FINAL_REVEAL';
+    pushLog(state, [], `[本局结束] 牌库耗尽，进入亮牌阶段。`);
     return;
   }
   // 推进入下一玩家
@@ -552,43 +554,40 @@ export function advanceTurn(state: GameState) {
   np.protected = false;
 }
 
+// 牌库耗尽亮牌动画结束：真正结算本局
+export function finalRevealResolve(state: GameState): GameState {
+  if (state.phase !== 'FINAL_REVEAL') return state;
+  const r = state.pending.finalReveal;
+  if (!r) return state;
+  state.pending.finalReveal = undefined;
+  endRound(state, r.winnerId, r.reason, r.tiedIds);
+  return state;
+}
+
 function endRound(
   state: GameState,
   winnerId: number,
   reason: string,
   tiedIds?: number[],
 ) {
-  // 间谍奖励
-  const spyWinners: number[] = [];
-  if (winnerId >= 0) {
-    if (tiedIds) {
-      // 平局：所有存活用间谍者 +1
-      for (const id of tiedIds) {
-        const p = state.players[id];
-        if (p.usedSpy) spyWinners.push(p.id);
-      }
-    } else {
-      // 单局胜者
-      const winner = state.players[winnerId];
-      if (winner.usedSpy) spyWinners.push(winner.id);
-      // 若单局胜者没用间谍，存活且用过间谍的玩家 +1
-      if (!winner.usedSpy) {
-        for (const p of state.players) {
-          if (p.alive && p.usedSpy) spyWinners.push(p.id);
-        }
-      }
-    }
-    for (const id of spyWinners) {
-      const p = state.players[id];
-      p.tokens += 1;
-      const aliveNote = p.alive ? '（存活）' : '（已出局）';
-      state.log.push({
-        id: ++state.logIdCounter,
-        turn: state.turn,
-        text: `[间谍奖励] ${p.name} ${aliveNote}因使用间谍获得 +1 标记。`,
-        events: [{ kind: 'SPY_BONUS', player: id, reason: '间谍奖励' }],
-      });
-    }
+  // 间谍奖励：唯一打出且存活到最后的玩家 +1；多人打出或唯一打出者已出局 → 无人得分
+  const spyPlayers = state.players.filter((p) => p.usedSpy);
+  if (spyPlayers.length === 1 && spyPlayers[0].alive) {
+    const p = spyPlayers[0];
+    p.tokens += 1;
+    state.log.push({
+      id: ++state.logIdCounter,
+      turn: state.turn,
+      text: `[间谍奖励] ${p.name} 是唯一打出间谍且存活到最后，获得 +1 标记。`,
+      events: [{ kind: 'SPY_BONUS', player: p.id, reason: '唯一间谍存活' }],
+    });
+  } else if (spyPlayers.length > 1) {
+    state.log.push({
+      id: ++state.logIdCounter,
+      turn: state.turn,
+      text: `[间谍奖励] 多人打出间谍（${spyPlayers.map((p) => p.name).join('、')}），无人获得奖励。`,
+      events: [],
+    });
   }
 
   // 单局胜者 +1
@@ -639,6 +638,7 @@ function startNextRound(state: GameState) {
     ...state.discard.map((d) => d.card),
     ...state.removed,
     ...state.removedPublic,
+    ...state.players.flatMap((p) => p.hand),
   ];
   let deck = shuffle(allCards);
   // 移除 1 张（暗）

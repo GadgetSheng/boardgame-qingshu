@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   baronCompare,
   chancellorReturnCards,
+  finalRevealResolve,
   guardGuess,
   initGame,
   kingSwap,
@@ -36,8 +37,11 @@ interface Actions {
   guardGuessAction: (targetId: number, guess: CardName) => void;
   chancellorReturnAction: (bottomOrder: Card[]) => void;
   priestRevealDismissAction: () => void;
+  finalRevealAction: () => void;
   runAI: () => void;
 }
+
+const TARGET_RESOLVE_DELAY = 650;
 
 export const useGameStore = create<{ state: GameState; actions: Actions }>((set, get) => ({
   state: initGame(1),
@@ -108,9 +112,19 @@ export const useGameStore = create<{ state: GameState; actions: Actions }>((set,
       priestRevealDismiss(s);
       set({ state: { ...s } });
     },
+    finalRevealAction() {
+      const s = get().state;
+      if (s.phase !== 'FINAL_REVEAL') return;
+      finalRevealResolve(s);
+      set({ state: { ...s } });
+    },
     runAI() {
       const s = get().state;
       if (s.phase === 'GAME_OVER') return;
+      if (s.phase === 'FINAL_REVEAL') {
+        // 亮牌动画由 UI 自动推进，AI 不操作
+        return;
+      }
       const p = s.players[s.currentPlayerIndex];
       if (p.isHuman) return;
       const playerId = p.id;
@@ -119,7 +133,7 @@ export const useGameStore = create<{ state: GameState; actions: Actions }>((set,
       if (s.phase === 'CHOOSE_CARD') {
         // 强制伯爵夫人检查
         if (mustPlayCountess(s)) {
-          const countess = p.hand.find((c) => c.name === '伯爵夫人');
+          const countess = p.hand.find((c) => c.name === '女伯爵');
           if (countess) {
             playCard(s, countess.id);
           } else {
@@ -135,43 +149,73 @@ export const useGameStore = create<{ state: GameState; actions: Actions }>((set,
       }
       if (s.phase === 'PRINCE_TARGET') {
         const t = aiPrinceTarget(s, playerId);
-        if (t != null) princeTarget(s, t);
-        set({ state: { ...s } });
+        if (t != null) {
+          s.pending.princeTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'PRINCE_TARGET') return;
+            princeTarget(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
         return;
       }
       if (s.phase === 'KING_TARGET') {
         const t = aiKingTarget(s, playerId);
-        if (t != null) kingSwap(s, t);
-        set({ state: { ...s } });
+        if (t != null) {
+          s.pending.kingTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'KING_TARGET') return;
+            kingSwap(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
         return;
       }
       if (s.phase === 'BARON_TARGET') {
         const t = aiBaronTarget(s, playerId);
-        if (t != null) baronCompare(s, t);
-        set({ state: { ...s } });
+        if (t != null) {
+          s.pending.baronTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'BARON_TARGET') return;
+            baronCompare(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
         return;
       }
       if (s.phase === 'PRIEST_TARGET') {
         const t = aiPriestTarget(s, playerId);
-        if (t != null) priestView(s, t);
-        set({ state: { ...s } });
+        if (t != null) {
+          s.pending.priestTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'PRIEST_TARGET') return;
+            priestView(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
         return;
       }
       if (s.phase === 'GUARD_GUESS') {
-        // 卫兵需要先选目标，再猜
-        if (s.pending.guardTarget == null) {
-          const t = aiGuardTarget(s, playerId);
-          if (t != null) {
-            s.pending.guardTarget = t;
-            // 立即猜
-            const guess = aiGuardGuess(s, playerId, t);
-            guardGuess(s, t, guess);
-          }
-        } else {
-          const guess = aiGuardGuess(s, playerId, s.pending.guardTarget);
-          guardGuess(s, s.pending.guardTarget, guess);
+        const t = aiGuardTarget(s, playerId);
+        if (t != null) {
+          s.pending.guardTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'GUARD_GUESS') return;
+            const guess = aiGuardGuess(cur, playerId, t);
+            guardGuess(cur, t, guess);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
         }
-        set({ state: { ...s } });
         return;
       }
       if (s.phase === 'CHANCELLOR_DISCARD') {

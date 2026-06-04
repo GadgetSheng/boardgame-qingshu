@@ -36,10 +36,10 @@ export function aiPickCard(state: GameState, playerId: number): Card | null {
   const p = state.players[playerId];
   if (p.hand.length === 0) return null;
   // 强制伯爵夫人
-  const hasCountess = p.hand.some((c) => c.name === '伯爵夫人');
+  const hasCountess = p.hand.some((c) => c.name === '女伯爵');
   const hasKingOrPrince = p.hand.some((c) => c.name === '国王' || c.name === '王子');
   if (hasCountess && hasKingOrPrince) {
-    return p.hand.find((c) => c.name === '伯爵夫人') ?? null;
+    return p.hand.find((c) => c.name === '女伯爵') ?? null;
   }
   // 持公主 → 优先出王子/国王/大臣/间谍等转移
   const hasPrincess = p.hand.some((c) => c.name === '公主');

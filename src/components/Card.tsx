@@ -85,7 +85,6 @@ export function Card({
           <div className="text-white font-bold text-center leading-tight drop-shadow">
             {card.name}
           </div>
-          <div className="text-white text-[10px] opacity-70">{card.value} 点</div>
         </div>
         {info && (
           <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-48 bg-slate-900 border border-amber-500/60 rounded-lg p-2 text-xs text-slate-200 shadow-xl opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity z-50 whitespace-normal">
@@ -140,7 +139,6 @@ export function Card({
           <div className="text-white font-bold text-center leading-tight drop-shadow">
             {card.name}
           </div>
-          <div className="text-white text-[10px] opacity-70">{card.value} 点</div>
         </div>
       </div>
     </div>
