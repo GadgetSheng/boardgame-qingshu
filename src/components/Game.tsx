@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useShallow } from 'zustand/react/shallow';
 import { useGameStore } from '../store/gameStore';
 import { GameHeader } from './GameHeader';
 import { GameLog } from './GameLog';
@@ -109,10 +110,14 @@ export function Game() {
   }
 
   const slotToPlayerId: Record<string, number> = {};
+  const playerIdToSeat: Record<number, number> = { 0: 1 };
   for (const [slot, p] of Object.entries(seats)) {
     if (p) slotToPlayerId[slot] = p.id;
   }
   slotToPlayerId['player'] = 0;
+  aiPlayers.forEach((p, i) => {
+    playerIdToSeat[p.id] = i + 2;
+  });
 
   // 目标线动画（每次 pendingTargetId 变化重置）
   const [lineKey, setLineKey] = useState(0);
@@ -153,7 +158,7 @@ export function Game() {
         player={p}
         isCurrentTurn={p.id === state.currentPlayerIndex}
         width={width}
-        facing={slot === 'left' || slot === 'right' ? 'side' : 'top'}
+        facing={isMobile ? 'side' : slot === 'left' || slot === 'right' ? 'side' : 'top'}
         onSelectPlayer={makeSelectHandler(p.id)}
         targetMode={
           targetMode &&
@@ -165,6 +170,7 @@ export function Game() {
         elementRef={(el) => { slotRefs.current[slot] = el; }}
         compact={isMobile}
         hideDiscards={isMobile}
+        seatIndex={playerIdToSeat[p.id]}
       />
     );
   };
@@ -184,6 +190,7 @@ export function Game() {
       targetMode={humanTargetMode}
       onSelectPlayer={makeSelectHandler(0)}
       compact={false}
+      seatIndex={playerIdToSeat[0]}
     />
   );
 
@@ -312,7 +319,7 @@ export function Game() {
 }
 
 function MiniLog({ onExpand }: { onExpand: () => void }) {
-  const events = useGameStore((s) => s.state.log.slice(-3));
+  const events = useGameStore(useShallow((s) => s.state.log.slice(-3)));
   return (
     <div className="h-14 px-2 border-t border-slate-700/60 bg-slate-900/40 shrink-0 flex items-center gap-2 overflow-hidden">
       <span className="text-amber-300/80 text-xs shrink-0" aria-hidden>📜</span>

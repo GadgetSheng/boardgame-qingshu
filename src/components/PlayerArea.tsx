@@ -17,6 +17,7 @@ interface Props {
   elementRef?: (el: HTMLDivElement | null) => void;
   compact?: boolean;
   hideDiscards?: boolean;
+  seatIndex?: number;
 }
 
 export function PlayerArea({
@@ -34,6 +35,7 @@ export function PlayerArea({
   elementRef,
   compact = false,
   hideDiscards = false,
+  seatIndex,
 }: Props) {
   if (!player.alive) {
     return (
@@ -43,7 +45,17 @@ export function PlayerArea({
         style={width ? { width } : undefined}
       >
         <div className="flex items-center justify-between text-[11px]">
-          <span className="text-slate-500 line-through truncate">{player.name}</span>
+          <div className="flex items-center gap-1 min-w-0">
+            {seatIndex != null && (
+              <span
+                className="shrink-0 inline-flex items-center justify-center rounded-full font-bold leading-none w-3.5 h-3.5 text-[9px] bg-slate-700 text-slate-300"
+                title={`座号 ${seatIndex}`}
+              >
+                {seatIndex}
+              </span>
+            )}
+            <span className="text-slate-500 line-through truncate">{player.name}</span>
+          </div>
           <span className="text-[10px] text-rose-500 shrink-0 ml-1">出局</span>
         </div>
         {!hideDiscards && discards.length > 0 && (
@@ -78,6 +90,20 @@ export function PlayerArea({
     >
       <div className={clsx('flex items-center justify-between', compact ? 'mb-0.5 text-[11px]' : 'mb-1.5 text-sm')}>
         <div className="flex items-center gap-1 min-w-0">
+          {seatIndex != null && (
+            <span
+              className={clsx(
+                'shrink-0 inline-flex items-center justify-center rounded-full font-bold leading-none',
+                compact ? 'w-3.5 h-3.5 text-[9px]' : 'w-4 h-4 text-[10px]',
+                player.isHuman
+                  ? 'bg-amber-500 text-slate-900'
+                  : 'bg-slate-600 text-slate-100',
+              )}
+              title={`座号 ${seatIndex}`}
+            >
+              {seatIndex}
+            </span>
+          )}
           <span
             className={clsx(
               'font-bold truncate',
