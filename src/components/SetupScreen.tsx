@@ -7,7 +7,7 @@ interface Props {
 export function SetupScreen({ onStart }: Props) {
   const [count, setCount] = useState(1);
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
+    <div className="min-h-dvh flex items-center justify-center p-4 sm:p-6">
       <div className="bg-slate-900/80 backdrop-blur rounded-2xl p-10 shadow-2xl border border-amber-500/30 max-w-lg w-full">
         <h1 className="text-4xl font-bold text-amber-300 text-center mb-2">情书</h1>
         <p className="text-center text-slate-400 text-sm mb-8">Love Letter · 2019 扩展版（含间谍 + 大臣）</p>

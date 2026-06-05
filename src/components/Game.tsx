@@ -9,12 +9,15 @@ import { TargetLine } from './TargetLine';
 import { mustPlayCountess } from '../gameLogic';
 import { CARD_DEFS } from '../types';
 import type { Card, CardName } from '../types';
+import { MOBILE_QUERY, useMediaQuery } from '../hooks/useMediaQuery';
 
 const GUESSABLE_CARDS = CARD_DEFS.filter((d) => d.name !== '卫兵').map((d) => d.name);
 
 export function Game() {
   const state = useGameStore((s) => s.state);
   const actions = useGameStore((s) => s.actions);
+  const isMobile = useMediaQuery(MOBILE_QUERY);
+  const [logOpen, setLogOpen] = useState(false);
 
   const currentPlayer = state.players[state.currentPlayerIndex];
   const isHumanTurn = currentPlayer?.isHuman && currentPlayer?.alive;
@@ -71,7 +74,6 @@ export function Game() {
   const currentHand = currentPlayer.hand[0];
   const chancellorAllCards: Card[] = currentHand ? [currentHand, ...chancellorDrawn] : chancellorDrawn;
 
-  // AI 行动
   const guardPhase = state.phase === 'GUARD_GUESS';
 
   // 玩家 DOM ref 映射（用于绘制目标线）
@@ -80,13 +82,6 @@ export function Game() {
   // 围坐席位分配
   const aiPlayers = state.players.filter((p) => !p.isHuman);
   const seats: Record<string, typeof aiPlayers[number] | undefined> = {};
-
-  // 按玩家分组的弃牌
-  const discardsByPlayer: Record<number, Card[]> = {};
-  for (const d of state.discard) {
-    if (!discardsByPlayer[d.playerId]) discardsByPlayer[d.playerId] = [];
-    discardsByPlayer[d.playerId]!.push(d.card);
-  }
   {
     const n = aiPlayers.length;
     if (n === 1) seats['top-mid'] = aiPlayers[0];
@@ -111,7 +106,6 @@ export function Game() {
     }
   }
 
-  // slot → playerId 映射
   const slotToPlayerId: Record<string, number> = {};
   for (const [slot, p] of Object.entries(seats)) {
     if (p) slotToPlayerId[slot] = p.id;
@@ -124,29 +118,7 @@ export function Game() {
     if (pendingTargetId != null) setLineKey((k) => k + 1);
   }, [pendingTargetId]);
 
-  const renderSeat = (slot: string) => {
-    const p = seats[slot];
-    if (!p) return <div className="w-[260px]" />; // 占位
-    return (
-      <PlayerArea
-        player={p}
-        isCurrentTurn={p.id === state.currentPlayerIndex}
-        width={260}
-        facing={slot === 'left' || slot === 'right' ? 'side' : 'top'}
-        onSelectPlayer={makeSelectHandler(p.id)}
-        targetMode={
-          targetMode &&
-          (state.phase !== 'PRINCE_TARGET'
-            ? p.id !== state.currentPlayerIndex
-            : true)
-        }
-        discards={discardsByPlayer[p.id] ?? []}
-        elementRef={(el) => { slotRefs.current[slot] = el; }}
-      />
-    );
-  };
-
-  const makeSelectHandler = (_id: number) =>
+  const makeSelectHandler = (id: number) =>
     targetMode
       ? (targetId: number) => {
           if (state.phase === 'PRINCE_TARGET') actions.princeTargetAction(targetId);
@@ -158,78 +130,152 @@ export function Game() {
               actions.guardTargetAction(targetId);
             }
           }
+          // 点完即关
+          if (isMobile) setLogOpen(false);
+          void id;
         }
       : undefined;
 
-  return (
-    <div className="h-screen flex flex-col">
-      <GameHeader />
-      <div className="flex-1 flex min-h-0 relative">
-        <div className="flex-1 grid grid-rows-[auto_1fr_auto] grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 min-h-0 relative">
-          {/* 顶排左 */}
-          <div className="row-start-1 col-start-1 flex justify-center items-start">
-            {renderSeat('top-left')}
-          </div>
-          {/* 顶排中 */}
-          <div className="row-start-1 col-start-2 flex justify-center items-start">
-            {renderSeat('top-mid')}
-          </div>
-          {/* 顶排右 */}
-          <div className="row-start-1 col-start-3 flex justify-center items-start">
-            {renderSeat('top-right')}
-          </div>
+  // 按玩家分组的弃牌
+  const discardsByPlayer: Record<number, Card[]> = {};
+  for (const d of state.discard) {
+    if (!discardsByPlayer[d.playerId]) discardsByPlayer[d.playerId] = [];
+    discardsByPlayer[d.playerId]!.push(d.card);
+  }
 
-          {/* 左侧 */}
-          <div className="row-start-2 col-start-1 flex items-center justify-start">
-            {renderSeat('left')}
-          </div>
+  const renderSeat = (slot: string, width?: number) => {
+    const p = seats[slot];
+    if (!p) return <div style={width ? { width } : undefined} className="hidden md:block w-[260px]" />;
+    return (
+      <PlayerArea
+        player={p}
+        isCurrentTurn={p.id === state.currentPlayerIndex}
+        width={width}
+        facing={slot === 'left' || slot === 'right' ? 'side' : 'top'}
+        onSelectPlayer={makeSelectHandler(p.id)}
+        targetMode={
+          targetMode &&
+          (state.phase !== 'PRINCE_TARGET'
+            ? p.id !== state.currentPlayerIndex
+            : true)
+        }
+        discards={discardsByPlayer[p.id] ?? []}
+        elementRef={(el) => { slotRefs.current[slot] = el; }}
+        compact={isMobile}
+      />
+    );
+  };
 
-          {/* 中央：牌桌 (弹性撑满) */}
-          <div className="row-start-2 col-start-2 flex items-center justify-center min-h-0 min-w-0">
-            <TableCenter />
-          </div>
+  const renderHumanHand = () => (
+    <PlayerArea
+      player={state.players[0]}
+      isCurrentTurn={state.currentPlayerIndex === 0}
+      isOwnHand
+      mustDiscard={mustDiscard}
+      onPlayCard={onPlayCard}
+      selectableCardIds={selectableCardIds}
+      width={isMobile ? undefined : 340}
+      facing="bottom"
+      discards={discardsByPlayer[state.players[0].id] ?? []}
+      elementRef={(el) => { slotRefs.current['player'] = el; }}
+      targetMode={humanTargetMode}
+      onSelectPlayer={makeSelectHandler(0)}
+      compact={false}
+    />
+  );
 
-          {/* 目标线 SVG（放 grid 内，覆盖所有 seat） */}
-          {showTargetLine && (
-            <TargetLine
-              key={lineKey}
-              containerClassName="absolute inset-0 pointer-events-none"
-              fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
-              toPlayerId={pendingTargetId}
-              slotRefs={slotRefs}
-              slotToPlayerId={slotToPlayerId}
-            />
-          )}
-
-          {/* 右侧 */}
-          <div className="row-start-2 col-start-3 flex items-center justify-end">
-            {renderSeat('right')}
-          </div>
-
-          {/* 底排：人类玩家（跨 3 列居中） */}
-          <div className="row-start-3 col-span-3 flex justify-center items-end">
-            <PlayerArea
-              player={state.players[0]}
-              isCurrentTurn={state.currentPlayerIndex === 0}
-              isOwnHand
-              mustDiscard={mustDiscard}
-              onPlayCard={onPlayCard}
-              selectableCardIds={selectableCardIds}
-              width={340}
-              facing="bottom"
-              discards={discardsByPlayer[state.players[0].id] ?? []}
-              elementRef={(el) => { slotRefs.current['player'] = el; }}
-              targetMode={humanTargetMode}
-              onSelectPlayer={makeSelectHandler(0)}
-            />
-          </div>
+  const desktopLayout = (
+    <div className="flex-1 flex min-h-0 relative">
+      <div className="flex-1 grid grid-rows-[auto_1fr_auto] grid-cols-[auto_minmax(0,1fr)_auto] gap-3 p-3 min-h-0 relative">
+        <div className="row-start-1 col-start-1 flex justify-center items-start">{renderSeat('top-left', 260)}</div>
+        <div className="row-start-1 col-start-2 flex justify-center items-start">{renderSeat('top-mid', 260)}</div>
+        <div className="row-start-1 col-start-3 flex justify-center items-start">{renderSeat('top-right', 260)}</div>
+        <div className="row-start-2 col-start-1 flex items-center justify-start">{renderSeat('left', 260)}</div>
+        <div className="row-start-2 col-start-2 flex items-center justify-center min-h-0 min-w-0">
+          <TableCenter />
         </div>
-        <div className="w-72 border-l border-slate-700 flex flex-col p-2 min-h-0">
-          <GameLog />
-        </div>
+        {showTargetLine && (
+          <TargetLine
+            key={lineKey}
+            containerClassName="absolute inset-0 pointer-events-none"
+            fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
+            toPlayerId={pendingTargetId}
+            slotRefs={slotRefs}
+            slotToPlayerId={slotToPlayerId}
+          />
+        )}
+        <div className="row-start-2 col-start-3 flex items-center justify-end">{renderSeat('right', 260)}</div>
+        <div className="row-start-3 col-span-3 flex justify-center items-end">{renderHumanHand()}</div>
+      </div>
+      <div className="w-72 border-l border-slate-700 flex flex-col p-2 min-h-0">
+        <GameLog />
+      </div>
+    </div>
+  );
+
+  const mobileLayout = (
+    <div className="flex-1 flex flex-col min-h-0 relative">
+      {/* 对手横排：可横向滚动 */}
+      <div className="flex gap-2 overflow-x-auto px-2 py-2 border-b border-slate-700/60 shrink-0">
+        {Object.entries(seats).map(([slot, p]) =>
+          p ? (
+            <div key={slot} className="shrink-0 w-44">
+              {renderSeat(slot)}
+            </div>
+          ) : null,
+        )}
       </div>
 
-      {/* 大臣 UI：选 2 张放牌库底 */}
+      {/* 中央牌桌 */}
+      <div className="flex-1 min-h-0 p-2 relative">
+        <TableCenter />
+        {showTargetLine && (
+          <TargetLine
+            key={lineKey}
+            containerClassName="absolute inset-0 pointer-events-none"
+            fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
+            toPlayerId={pendingTargetId}
+            slotRefs={slotRefs}
+            slotToPlayerId={slotToPlayerId}
+          />
+        )}
+      </div>
+
+      {/* 底部手牌 */}
+      <div className="px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-amber-500/30 bg-slate-900/60 shrink-0">
+        {renderHumanHand()}
+      </div>
+
+      {/* 日志抽屉 */}
+      {logOpen && (
+        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setLogOpen(false)}>
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div
+            className="relative w-full max-h-[70vh] bg-slate-900 border-t-2 border-amber-500/50 rounded-t-2xl p-3 flex flex-col pb-[max(0.75rem,env(safe-area-inset-bottom))]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-amber-300 font-bold text-sm">📜 游戏日志</h2>
+              <button
+                onClick={() => setLogOpen(false)}
+                className="w-9 h-9 rounded-full bg-slate-700 text-slate-200 active:scale-95"
+                aria-label="关闭"
+              >✕</button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <GameLog />
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="h-dvh flex flex-col">
+      <GameHeader onToggleLog={isMobile ? () => setLogOpen((v) => !v) : undefined} />
+      {isMobile ? mobileLayout : desktopLayout}
+
       {chancellorPhase && isHumanTurn && (
         <ChancellorDialog
           allCards={chancellorAllCards}
@@ -237,7 +283,6 @@ export function Game() {
         />
       )}
 
-      {/* 神父：翻牌动画 */}
       {state.phase === 'PRIEST_REVEAL' && state.pending.priestRevealed && (
         <PriestRevealDialog
           targetName={state.players[state.pending.priestRevealed.targetId]?.name ?? '?'}
@@ -246,7 +291,6 @@ export function Game() {
         />
       )}
 
-      {/* 牌库耗尽：所有存活玩家亮牌 */}
       {state.phase === 'FINAL_REVEAL' && (
         <FinalRevealDialog
           players={state.players}
@@ -254,7 +298,6 @@ export function Game() {
         />
       )}
 
-      {/* 卫兵 UI：选目标后猜牌 */}
       {guardPhase && isHumanTurn && state.pending.guardTarget != null && (
         <GuardGuessDialog
           targetId={state.pending.guardTarget}
@@ -277,11 +320,9 @@ function ChancellorDialog({ allCards, onConfirm }: { allCards: Card[]; onConfirm
 }
 
 function ChancellorPicker({ allCards, onConfirm }: { allCards: Card[]; onConfirm: (order: Card[]) => void }) {
-  // 选 N-1 张放回底部（N = allCards.length，1 张留下）
   const pickCount = Math.max(0, allCards.length - 1);
   const slotLabels = ['最底（先放）', '次底', '第三底'];
   const [picks, setPicks] = useState<(Card | null)[]>(() => Array(pickCount).fill(null));
-  // allCards 变化时重置
   useEffect(() => {
     setPicks(Array(pickCount).fill(null));
   }, [pickCount]);
@@ -312,7 +353,7 @@ function ChancellorPicker({ allCards, onConfirm }: { allCards: Card[]; onConfirm
       </p>
       <div className="mb-4">
         <div className="text-xs text-slate-400 mb-1">手牌（点击选择）</div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           {allCards.map((c) => {
             const slot = slotOf(c.id);
             return (
@@ -320,7 +361,7 @@ function ChancellorPicker({ allCards, onConfirm }: { allCards: Card[]; onConfirm
                 key={c.id}
                 onClick={() => toggle(c)}
                 disabled={slot < 0 && filled.length >= pickCount}
-                className={`px-3 py-2 rounded font-bold text-sm transition-all ${
+                className={`px-3 py-3 rounded font-bold text-sm transition-all min-w-[3rem] ${
                   slot === 0
                     ? 'bg-amber-700 text-white'
                     : slot === 1
@@ -336,7 +377,7 @@ function ChancellorPicker({ allCards, onConfirm }: { allCards: Card[]; onConfirm
           })}
         </div>
       </div>
-      <div className={`grid gap-4 mb-4`} style={{ gridTemplateColumns: `repeat(${Math.max(pickCount, 1)}, minmax(0, 1fr))` }}>
+      <div className={`grid gap-2 mb-4`} style={{ gridTemplateColumns: `repeat(${Math.max(pickCount, 1)}, minmax(0, 1fr))` }}>
         {picks.map((c, i) => (
           <Slot key={i} label={slotLabels[i] ?? `第${i + 1}底`} card={c} />
         ))}
@@ -371,14 +412,14 @@ function GuardGuessDialog({ targetId, onGuess }: { targetId: number; onGuess: (g
   const targetName = useGameStore((s) => s.state.players[targetId]?.name ?? '?');
   return (
     <Modal>
-      <h2 className="text-2xl font-bold text-amber-300 mb-2">卫兵 — 猜 {targetName} 的手牌</h2>
+      <h2 className="text-xl sm:text-2xl font-bold text-amber-300 mb-2">卫兵 — 猜 {targetName} 的手牌</h2>
       <p className="text-sm text-slate-300 mb-4">不能猜卫兵</p>
       <div className="grid grid-cols-3 gap-2">
         {GUESSABLE_CARDS.map((n) => (
           <button
             key={n}
             onClick={() => onGuess(n)}
-            className="py-2 bg-slate-700 hover:bg-amber-600 text-slate-200 rounded font-bold"
+            className="py-3 bg-slate-700 hover:bg-amber-600 active:bg-amber-600 text-slate-200 rounded font-bold min-h-[44px]"
           >
             {n}
           </button>
@@ -390,8 +431,8 @@ function GuardGuessDialog({ targetId, onGuess }: { targetId: number; onGuess: (g
 
 function Modal({ children }: { children: React.ReactNode }) {
   return (
-    <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-40 p-6">
-      <div className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-amber-500/50 rounded-2xl p-6 max-w-2xl w-full shadow-2xl">
+    <div className="fixed inset-0 bg-black/70 backdrop-blur flex items-center justify-center z-40 p-4 sm:p-6">
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 border-2 border-amber-500/50 rounded-2xl p-5 sm:p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
         {children}
       </div>
     </div>
@@ -407,7 +448,6 @@ function PriestRevealDialog({
   card: Card | null;
   onDismiss: () => void;
 }) {
-  // 动画时序：0ms 背面 → 350ms 翻到正面 → 2400ms 翻回背面 → 3000ms 自动关闭
   const [flipped, setFlipped] = useState(false);
   const [closing, setClosing] = useState(false);
 
@@ -437,31 +477,29 @@ function PriestRevealDialog({
         onDismiss();
       }}
     >
-      <h2 className="text-2xl font-bold text-amber-300 mb-2">
+      <h2 className="text-xl sm:text-2xl font-bold text-amber-300 mb-2 text-center">
         神父查看 {targetName} 的手牌
       </h2>
       <p className="text-sm text-slate-300 mb-6">点击空白处关闭</p>
 
       <div className="[perspective:1000px]">
         <div
-          className="relative w-40 h-56 [transform-style:preserve-3d] transition-transform duration-700 ease-out"
+          className="relative w-32 h-44 sm:w-40 sm:h-56 [transform-style:preserve-3d] transition-transform duration-700 ease-out"
           style={{ transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
         >
-          {/* 背面 */}
           <div className="absolute inset-0 rounded-xl border-2 bg-gradient-to-br from-indigo-700 to-indigo-900 border-indigo-400 flex items-center justify-center text-amber-300 font-bold shadow-2xl [backface-visibility:hidden]">
             <div className="flex flex-col items-center gap-1">
-              <div className="text-5xl drop-shadow">❀</div>
-              <div className="text-xs tracking-widest opacity-80">LOVE LETTER</div>
+              <div className="text-4xl sm:text-5xl drop-shadow">❀</div>
+              <div className="text-[10px] sm:text-xs tracking-widest opacity-80">LOVE LETTER</div>
             </div>
           </div>
-          {/* 正面 */}
           <div
             className={`absolute inset-0 rounded-xl border-2 bg-gradient-to-br ${colorClass} flex flex-col items-center justify-between p-3 shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)]`}
           >
             {card ? (
               <>
-                <div className="text-4xl font-bold text-white drop-shadow">{card.value}</div>
-                <div className="text-white font-bold text-xl text-center drop-shadow">
+                <div className="text-3xl sm:text-4xl font-bold text-white drop-shadow">{card.value}</div>
+                <div className="text-white font-bold text-lg sm:text-xl text-center drop-shadow">
                   {card.name}
                 </div>
               </>
@@ -495,7 +533,6 @@ function FinalRevealDialog({
   players: { id: number; name: string; alive: boolean; hand: Card[] }[];
   onDismiss: () => void;
 }) {
-  // 时序：0 背面 → 500ms 翻牌 → 3500ms 自动关闭
   const [flipped, setFlipped] = useState(false);
   const [closing, setClosing] = useState(false);
 
@@ -517,7 +554,7 @@ function FinalRevealDialog({
 
   return (
     <div
-      className={`fixed inset-0 bg-black/80 backdrop-blur flex flex-col items-center justify-center z-50 p-6 transition-opacity duration-300 ${
+      className={`fixed inset-0 bg-black/80 backdrop-blur flex flex-col items-center justify-center z-50 p-4 sm:p-6 transition-opacity duration-300 ${
         closing ? 'opacity-0' : 'opacity-100'
       }`}
       onClick={() => {
@@ -525,54 +562,52 @@ function FinalRevealDialog({
         onDismiss();
       }}
     >
-      <h2 className="text-3xl font-bold text-amber-300 mb-2 drop-shadow-lg">
+      <h2 className="text-2xl sm:text-3xl font-bold text-amber-300 mb-2 drop-shadow-lg text-center">
         牌库耗尽 — 亮牌
       </h2>
-      <p className="text-sm text-slate-300 mb-6">所有存活玩家同时亮出手牌</p>
+      <p className="text-sm text-slate-300 mb-4 sm:mb-6 text-center">所有存活玩家同时亮出手牌</p>
 
       <div
-        className="flex flex-wrap items-end justify-center gap-6 max-w-5xl"
+        className="flex flex-wrap items-end justify-center gap-3 sm:gap-6 max-w-5xl"
         onClick={(e) => e.stopPropagation()}
       >
         {alive.map((p) => {
           const card = p.hand[0] ?? null;
           const winner = isWinner(p);
           return (
-            <div key={p.id} className="flex flex-col items-center gap-2">
-              <div className="text-lg font-bold text-slate-100 drop-shadow">
+            <div key={p.id} className="flex flex-col items-center gap-1.5 sm:gap-2">
+              <div className="text-sm sm:text-lg font-bold text-slate-100 drop-shadow text-center">
                 {p.name}
                 {winner && (
-                  <span className="ml-2 text-amber-300 text-sm">★ 胜者</span>
+                  <span className="ml-2 text-amber-300 text-xs sm:text-sm">★ 胜者</span>
                 )}
               </div>
               <div
-                className={`relative w-32 h-44 [transform-style:preserve-3d] transition-transform duration-700 ease-out`}
+                className={`relative w-24 h-32 sm:w-32 sm:h-44 [transform-style:preserve-3d] transition-transform duration-700 ease-out`}
                 style={{ transform: flipped ? 'rotateY(180deg)' : 'rotateY(0deg)' }}
               >
-                {/* 背面 */}
                 <div className="absolute inset-0 rounded-xl border-2 bg-gradient-to-br from-indigo-700 to-indigo-900 border-indigo-400 flex items-center justify-center text-amber-300 font-bold shadow-2xl [backface-visibility:hidden]">
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="text-4xl drop-shadow">❀</div>
-                    <div className="text-[10px] tracking-widest opacity-80">LOVE LETTER</div>
+                  <div className="flex flex-col items-center gap-0.5">
+                    <div className="text-3xl sm:text-4xl drop-shadow">❀</div>
+                    <div className="text-[9px] sm:text-[10px] tracking-widest opacity-80">LOVE LETTER</div>
                   </div>
                 </div>
-                {/* 正面 */}
                 <div
                   className={`absolute inset-0 rounded-xl border-2 bg-gradient-to-br ${
                     card ? cardColorClass(card.name) : 'from-slate-600 to-slate-800 border-slate-400'
-                  } flex flex-col items-center justify-between p-3 shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)] ${
+                  } flex flex-col items-center justify-between p-2 sm:p-3 shadow-2xl [backface-visibility:hidden] [transform:rotateY(180deg)] ${
                     winner ? 'ring-4 ring-amber-300 ring-offset-2 ring-offset-slate-900 animate-pulse' : ''
                   }`}
                 >
                   {card ? (
                     <>
-                      <div className="text-3xl font-bold text-white drop-shadow">{card.value}</div>
-                      <div className="text-white font-bold text-base text-center drop-shadow">
+                      <div className="text-2xl sm:text-3xl font-bold text-white drop-shadow">{card.value}</div>
+                      <div className="text-white font-bold text-sm sm:text-base text-center drop-shadow">
                         {card.name}
                       </div>
                     </>
                   ) : (
-                    <div className="text-white text-base my-auto">无牌</div>
+                    <div className="text-white text-sm sm:text-base my-auto">无牌</div>
                   )}
                 </div>
               </div>
@@ -581,7 +616,7 @@ function FinalRevealDialog({
         })}
       </div>
 
-      <p className="text-xs text-slate-400 mt-6">点击空白处跳过</p>
+      <p className="text-xs text-slate-400 mt-4 sm:mt-6">点击空白处跳过</p>
     </div>
   );
 }

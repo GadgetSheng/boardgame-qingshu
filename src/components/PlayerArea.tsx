@@ -15,6 +15,7 @@ interface Props {
   width?: number;
   discards?: Card[];
   elementRef?: (el: HTMLDivElement | null) => void;
+  compact?: boolean;
 }
 
 export function PlayerArea({
@@ -30,6 +31,7 @@ export function PlayerArea({
   width,
   discards = [],
   elementRef,
+  compact = false,
 }: Props) {
   if (!player.alive) {
     return (
@@ -55,7 +57,7 @@ export function PlayerArea({
 
   const isTargetable = targetMode && !player.protected && onSelectPlayer;
   const hand = player.hand;
-  const cardSize: 'sm' | 'md' | 'lg' = width && width < 240 ? 'sm' : 'md';
+  const cardSize: 'sm' | 'md' | 'lg' = compact || (width != null && width < 240) ? 'sm' : 'md';
 
   return (
     <div
