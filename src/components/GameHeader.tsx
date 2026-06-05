@@ -1,27 +1,27 @@
-import type { Player } from '../types';
+import { useGameStore } from '../store/gameStore';
 
-interface GameHeaderProps {
-  players: Player[];
-  onRestart: () => void;
-}
-
-export default function GameHeader({ players, onRestart }: GameHeaderProps) {
+export function GameHeader() {
+  const state = useGameStore((s) => s.state);
   return (
-    <div className="flex justify-between items-center p-2 px-4 bg-amber-100 rounded-lg border-2 border-amber-700">
-      <div className="flex gap-5 text-sm text-gray-700 font-serif">
-        <span className="px-2 py-1 bg-amber-100/50 rounded">本局21张牌</span>
+    <header className="bg-slate-900/80 backdrop-blur border-b border-amber-500/30 px-6 py-3 flex items-center justify-between">
+      <h1 className="text-2xl font-bold text-amber-300">【情书】桌游</h1>
+      <div className="flex items-center gap-6 text-sm">
+        <div className="text-slate-300">
+          <span className="text-slate-500">回合</span> {state.round} · {state.turn}
+        </div>
+        <div className="text-slate-300">
+          <span className="text-slate-500">牌库</span> {state.deck.length}
+        </div>
+        <div className="text-slate-300">
+          <span className="text-slate-500">弃牌</span> {state.discard.length}
+        </div>
+        <div className="text-slate-300">
+          <span className="text-slate-500">移除</span> {state.removed.length + state.removedPublic.length}
+        </div>
+        <div className="text-amber-300 font-bold">
+          目标 {state.targetTokens} 标记
+        </div>
       </div>
-      <div className="flex gap-2">
-        {players.filter(p => p.tokens > 0).map(p => (
-          <span key={p.id} className="px-2 py-1 bg-amber-200 rounded text-sm font-serif">{p.name}: {p.tokens}❤️</span>
-        ))}
-      </div>
-      <button
-        className="px-4 py-2 text-sm font-serif bg-red-700 text-white border border-amber-500 rounded-md cursor-pointer hover:bg-red-900 transition"
-        onClick={onRestart}
-      >
-        重新开始
-      </button>
-    </div>
+    </header>
   );
 }

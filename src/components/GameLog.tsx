@@ -1,19 +1,29 @@
+import { useEffect, useRef } from 'react';
 import { useGameStore } from '../store/gameStore';
 
-export default function GameLog() {
-  const { gameState } = useGameStore();
-
-  if (!gameState) return null;
+export function GameLog() {
+  const state = useGameStore((s) => s.state);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (ref.current) ref.current.scrollTop = ref.current.scrollHeight;
+  }, [state.log.length]);
 
   return (
-    <div className="fixed right-4 top-20 w-[200px] max-h-[400px] bg-amber-100 rounded-lg border-2 border-amber-700 flex flex-col overflow-hidden">
-      <div className="px-3 py-2 text-sm font-bold font-serif text-gray-700 bg-amber-200 border-b border-amber-700">
-        游戏日志
-      </div>
-      <div className="flex-1 overflow-y-auto p-2">
-        {gameState.log.map((entry, i) => (
-          <div key={i} className="text-[11px] font-serif text-gray-700 py-1 border-b border-amber-200/30">
-            {entry}
+    <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-3 h-full flex flex-col">
+      <h2 className="text-amber-300 font-bold text-sm mb-2 sticky top-0">📜 游戏日志</h2>
+      <div ref={ref} className="flex-1 overflow-y-auto space-y-1 text-xs">
+        {state.log.map((e) => (
+          <div
+            key={e.id}
+            className={`px-2 py-1 rounded ${
+              e.text.includes('出局') || e.text.includes('全局胜利')
+                ? 'bg-rose-900/40 text-rose-200'
+                : e.text.includes('摸到') || e.text.includes('打出')
+                ? 'bg-amber-900/20 text-amber-100'
+                : 'text-slate-300'
+            }`}
+          >
+            {e.text}
           </div>
         ))}
       </div>

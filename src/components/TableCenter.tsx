@@ -1,32 +1,43 @@
 import { useGameStore } from '../store/gameStore';
-import Card from '../Card';
+import { Card } from './Card';
 
-export default function TableCenter() {
-  const { gameState } = useGameStore();
-
-  if (!gameState) return null;
+export function TableCenter() {
+  const state = useGameStore((s) => s.state);
+  const topDeck = state.deck[state.deck.length - 1];
 
   return (
-    <div className="flex justify-center items-center gap-10 p-5 bg-amber-900/20 rounded-2xl border-2 border-amber-500/30">
-      {/* Deck */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative">
-          <div className="w-[120px] h-[168px] rounded-lg bg-red-800 border-2 border-amber-500 flex items-center justify-center">
-            <div className="w-[90%] h-[85%] border border-amber-500 rounded flex items-center justify-center text-amber-500 text-3xl bg-amber-500/10 bg-[repeating-linear-gradient(45deg,transparent,transparent_5px,rgba(218,165,32,0.1)_5px,rgba(218,165,32,0.1)_10px)]">
-              ?
-            </div>
-          </div>
-        </div>
-        <div className="text-sm text-amber-500 font-bold font-serif">{gameState.deck.length}</div>
+    <div className="bg-slate-900/60 border border-amber-500/30 rounded-xl p-4 flex flex-col min-w-0 w-full h-full max-w-2xl relative overflow-hidden">
+      {/* 牌库 - 左下（顶张不可看） */}
+      <div className="absolute bottom-4 left-4 flex flex-col items-center gap-1 z-10">
+        <Card card={topDeck} size="md" />
+        <div className="text-xs text-slate-400 mt-1">牌库 {state.deck.length}</div>
       </div>
 
-      {/* Discard */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="text-xs text-amber-400 font-serif">弃牌区</div>
-        <div className="flex flex-wrap gap-1 max-w-[200px] justify-center">
-          {gameState.discardPile.map((card, i) => (
-            <Card key={`${card}-${i}`} name={card} small />
+      {/* 移除堆 - 右下（hover 翻牌查看） */}
+      <div className="absolute bottom-4 right-4 flex flex-col items-center gap-1 z-10">
+        <div className="flex gap-1 flex-wrap justify-end max-w-[200px]">
+          {state.removed.slice(-3).map((c) => (
+            <Card key={c.id} card={c} size="md" peekOnHover />
           ))}
+          {state.removedPublic.map((c) => (
+            <Card key={c.id} card={c} size="md" forceFaceUp />
+          ))}
+        </div>
+        <div className="text-xs text-slate-400 mt-1">
+          移除 {state.removed.length + state.removedPublic.length}
+        </div>
+        {state.removedPublic.length > 0 && (
+          <div className="text-[10px] text-amber-400">2人局公开</div>
+        )}
+        {state.removed.length > 0 && (
+          <div className="text-[10px] text-slate-500">hover 看牌</div>
+        )}
+      </div>
+
+      {/* 中央装饰 */}
+      <div className="flex-1 flex items-center justify-center min-h-[180px]">
+        <div className="text-slate-600 text-sm select-none">
+          弃牌在各玩家位旁
         </div>
       </div>
     </div>

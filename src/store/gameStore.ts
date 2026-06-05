@@ -1,212 +1,230 @@
 import { create } from 'zustand';
-import type { GameState, CardName, PlayerType } from '../types';
-import { setupGame, drawCard, playCard, getValidTargets, getValidGuesses, chancellorChooseCard, chooseDrawnCard, takeAITurn, advanceToNextTurn } from '../gameLogic';
-import { makeChancellorChoice } from '../ai';
+import {
+  baronCompare,
+  chancellorReturnCards,
+  finalRevealResolve,
+  guardGuess,
+  initGame,
+  kingSwap,
+  mustPlayCountess,
+  playCard,
+  playerDrawPhase,
+  princeTarget,
+  priestRevealDismiss,
+  priestView,
+} from '../gameLogic';
+import {
+  aiBaronTarget,
+  aiChancellorReturn,
+  aiGuardGuess,
+  aiGuardTarget,
+  aiKingTarget,
+  aiPickCard,
+  aiPrinceTarget,
+  aiPriestTarget,
+} from '../ai';
+import type { Card, CardName, GameState } from '../types';
 
-interface UIState {
-  selectedCard: CardName | null;
-  targetPlayerId: number | null;
-  guardGuess: CardName | null;
-  selectedDrawnCard: CardName | null;
-  waitingForNextTurn: boolean;
+interface Actions {
+  newGame: (aiCount: number) => void;
+  startTurnDraw: () => void;
+  playCardAction: (cardId: string) => void;
+  princeTargetAction: (targetId: number) => void;
+  kingTargetAction: (targetId: number) => void;
+  baronTargetAction: (targetId: number) => void;
+  priestTargetAction: (targetId: number) => void;
+  guardTargetAction: (targetId: number) => void;
+  guardGuessAction: (targetId: number, guess: CardName) => void;
+  chancellorReturnAction: (bottomOrder: Card[]) => void;
+  priestRevealDismissAction: () => void;
+  finalRevealAction: () => void;
+  runAI: () => void;
 }
 
-interface GameStore extends UIState {
-  gameState: GameState | null;
-  aiTypes: PlayerType[];
+const TARGET_RESOLVE_DELAY = 650;
 
-  // Actions
-  initGame: (aiTypes: PlayerType[]) => void;
-  setSelectedCard: (card: CardName | null) => void;
-  setTargetPlayerId: (id: number | null) => void;
-  setGuardGuess: (guess: CardName | null) => void;
-  setSelectedDrawnCard: (card: CardName | null) => void;
-  setWaitingForNextTurn: (waiting: boolean) => void;
-  drawForCurrentPlayer: () => void;
-
-  // Game logic
-  handleCardClick: (cardName: CardName) => void;
-  handlePlayerSelect: (playerId: number) => void;
-  handleGuessSelect: (guess: CardName) => void;
-  handleChancellorSelect: (keptCard: CardName) => void;
-  handlePlayCard: () => void;
-  handleDrawnCardClick: (cardName: CardName) => void;
-  handleConfirmDrawnCard: () => void;
-  handleConfirmTurn: () => void;
-  executeAITurn: () => void;
-
-  // Queries
-  canPlayCard: () => boolean;
-  getCurrentPlayer: () => GameState['players'][0] | null;
-  getValidTargetsForSelectedCard: () => GameState['players'];
-  getValidGuessesList: () => CardName[];
-}
-
-export const useGameStore = create<GameStore>((set, get) => ({
-  gameState: null,
-  aiTypes: [],
-  selectedCard: null,
-  targetPlayerId: null,
-  guardGuess: null,
-  selectedDrawnCard: null,
-  waitingForNextTurn: false,
-
-  initGame: (aiTypes) => {
-    const playerTypes: PlayerType[] = ['human', ...aiTypes];
-    const gameState = setupGame(playerTypes);
-    set({
-      gameState,
-      aiTypes,
-      selectedCard: null,
-      targetPlayerId: null,
-      guardGuess: null,
-      selectedDrawnCard: null,
-      waitingForNextTurn: false,
-    });
-  },
-
-  setSelectedCard: (card) => set({ selectedCard: card, targetPlayerId: null, guardGuess: null }),
-  setTargetPlayerId: (id) => set({ targetPlayerId: id }),
-  setGuardGuess: (guess) => set({ guardGuess: guess }),
-  setSelectedDrawnCard: (card) => set({ selectedDrawnCard: card }),
-  setWaitingForNextTurn: (waiting) => set({ waitingForNextTurn: waiting }),
-
-  drawForCurrentPlayer: () => {
-    const { gameState } = get();
-    if (!gameState) return;
-    if (gameState.deck.length === 0) return;
-    if (gameState.handChoices.length > 0) return;
-    set({ gameState: drawCard(gameState) });
-  },
-
-  handleCardClick: (cardName) => {
-    const { gameState } = get();
-    if (!gameState) return;
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (currentPlayer.type !== 'human') return;
-    if (currentPlayer.hand !== cardName) return;
-
-    set({ selectedCard: cardName, targetPlayerId: null, guardGuess: null });
-
-    const cardNeedsTarget = ['Guard', 'Priest', 'Baron', 'Prince', 'King'].includes(cardName);
-    if (cardNeedsTarget) {
-      const targets = getValidTargets(gameState, cardName);
-      if (targets.length === 1) {
-        set({ targetPlayerId: targets[0].id });
-      }
-    }
-  },
-
-  handlePlayerSelect: (playerId) => set({ targetPlayerId: playerId }),
-
-  handleGuessSelect: (guess) => set({ guardGuess: guess }),
-
-  handleChancellorSelect: (keptCard) => {
-    const { gameState } = get();
-    if (!gameState) return;
-    const newState = chancellorChooseCard(gameState, keptCard);
-    set({ gameState: newState });
-  },
-
-  handlePlayCard: () => {
-    const { gameState, selectedCard, targetPlayerId, guardGuess } = get();
-    if (!gameState || !selectedCard) {
-      console.log(`[Store] handlePlayCard 失败: gameState或selectedCard为空`);
-      return;
-    }
-    if (!get().canPlayCard()) {
-      console.log(`[Store] handlePlayCard 失败: canPlayCard返回false`);
-      return;
-    }
-
-    let targetId: number | undefined;
-    if (['Guard', 'Priest', 'Baron', 'Prince', 'King'].includes(selectedCard)) {
-      if (targetPlayerId !== null) {
-        targetId = targetPlayerId;
-      } else {
-        console.log(`[Store] handlePlayCard 失败: 需要选择目标`);
+export const useGameStore = create<{ state: GameState; actions: Actions }>((set, get) => ({
+  state: initGame(1),
+  actions: {
+    newGame(aiCount: number) {
+      set({ state: initGame(aiCount) });
+    },
+    startTurnDraw() {
+      const s = get().state;
+      const np = s.players[s.currentPlayerIndex];
+      np.protected = false;
+      playerDrawPhase(s);
+      set({ state: { ...s } });
+    },
+    playCardAction(cardId: string) {
+      const s = get().state;
+      if (s.phase !== 'CHOOSE_CARD') return;
+      if (s.players[s.currentPlayerIndex].isHuman === false) return;
+      playCard(s, cardId);
+      set({ state: { ...s } });
+    },
+    princeTargetAction(targetId: number) {
+      const s = get().state;
+      if (s.phase !== 'PRINCE_TARGET') return;
+      princeTarget(s, targetId);
+      set({ state: { ...s } });
+    },
+    kingTargetAction(targetId: number) {
+      const s = get().state;
+      if (s.phase !== 'KING_TARGET') return;
+      kingSwap(s, targetId);
+      set({ state: { ...s } });
+    },
+    baronTargetAction(targetId: number) {
+      const s = get().state;
+      if (s.phase !== 'BARON_TARGET') return;
+      baronCompare(s, targetId);
+      set({ state: { ...s } });
+    },
+    priestTargetAction(targetId: number) {
+      const s = get().state;
+      if (s.phase !== 'PRIEST_TARGET') return;
+      priestView(s, targetId);
+      set({ state: { ...s } });
+    },
+    guardTargetAction(targetId: number) {
+      const s = get().state;
+      if (s.phase !== 'GUARD_GUESS') return;
+      // 选完目标后立即进入卫兵猜牌子阶段
+      s.pending.guardTarget = targetId;
+      set({ state: { ...s } });
+    },
+    guardGuessAction(targetId: number, guess: CardName) {
+      const s = get().state;
+      if (s.phase !== 'GUARD_GUESS') return;
+      guardGuess(s, targetId, guess);
+      set({ state: { ...s } });
+    },
+    chancellorReturnAction(bottomOrder: Card[]) {
+      const s = get().state;
+      if (s.phase !== 'CHANCELLOR_DISCARD') return;
+      chancellorReturnCards(s, bottomOrder);
+      set({ state: { ...s } });
+    },
+    priestRevealDismissAction() {
+      const s = get().state;
+      if (s.phase !== 'PRIEST_REVEAL') return;
+      priestRevealDismiss(s);
+      set({ state: { ...s } });
+    },
+    finalRevealAction() {
+      const s = get().state;
+      if (s.phase !== 'FINAL_REVEAL') return;
+      finalRevealResolve(s);
+      set({ state: { ...s } });
+    },
+    runAI() {
+      const s = get().state;
+      if (s.phase === 'GAME_OVER') return;
+      if (s.phase === 'FINAL_REVEAL') {
+        // 亮牌动画由 UI 自动推进，AI 不操作
         return;
       }
-    }
+      const p = s.players[s.currentPlayerIndex];
+      if (p.isHuman) return;
+      const playerId = p.id;
 
-    if (selectedCard === 'Guard' && guardGuess === null) {
-      console.log(`[Store] handlePlayCard 失败: Guard需要猜测`);
-      return;
-    }
-
-    console.log(`[Store] handlePlayCard: ${selectedCard}, targetId=${targetId}, guess=${guardGuess}`);
-
-    const newState = playCard(gameState, selectedCard, targetId, guardGuess ?? undefined);
-    console.log(`[Store] 出牌后message: ${newState.message}`);
-    set({ gameState: newState, selectedCard: null, targetPlayerId: null, guardGuess: null });
-
-    if (newState.phase === 'gameover') return;
-    if (newState.handChoices.length > 0) return;
-
-    const afterPlayPlayer = newState.players[newState.currentPlayerIndex];
-    if (afterPlayPlayer.hand === null && newState.deck.length > 0) {
-      const drawnState = drawCard(newState);
-      set({ gameState: drawnState });
-      return;
-    }
-
-    const nextPlayer = newState.players[newState.currentPlayerIndex];
-    if (nextPlayer.type !== 'human' && newState.phase === 'playing') {
-      setTimeout(() => {
-        const drawn = drawCard(newState);
-        set({ gameState: drawn });
-      }, 500);
-    }
+      // 根据 phase 自动决策
+      if (s.phase === 'CHOOSE_CARD') {
+        // 强制伯爵夫人检查
+        if (mustPlayCountess(s)) {
+          const countess = p.hand.find((c) => c.name === '女伯爵');
+          if (countess) {
+            playCard(s, countess.id);
+          } else {
+            const picked = aiPickCard(s, playerId);
+            if (picked) playCard(s, picked.id);
+          }
+        } else {
+          const picked = aiPickCard(s, playerId);
+          if (picked) playCard(s, picked.id);
+        }
+        set({ state: { ...s } });
+        return;
+      }
+      if (s.phase === 'PRINCE_TARGET') {
+        const t = aiPrinceTarget(s, playerId);
+        if (t != null) {
+          s.pending.princeTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'PRINCE_TARGET') return;
+            princeTarget(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
+        return;
+      }
+      if (s.phase === 'KING_TARGET') {
+        const t = aiKingTarget(s, playerId);
+        if (t != null) {
+          s.pending.kingTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'KING_TARGET') return;
+            kingSwap(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
+        return;
+      }
+      if (s.phase === 'BARON_TARGET') {
+        const t = aiBaronTarget(s, playerId);
+        if (t != null) {
+          s.pending.baronTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'BARON_TARGET') return;
+            baronCompare(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
+        return;
+      }
+      if (s.phase === 'PRIEST_TARGET') {
+        const t = aiPriestTarget(s, playerId);
+        if (t != null) {
+          s.pending.priestTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'PRIEST_TARGET') return;
+            priestView(cur, t);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
+        return;
+      }
+      if (s.phase === 'GUARD_GUESS') {
+        const t = aiGuardTarget(s, playerId);
+        if (t != null) {
+          s.pending.guardTarget = t;
+          set({ state: { ...s } });
+          setTimeout(() => {
+            const cur = get().state;
+            if (cur.phase !== 'GUARD_GUESS') return;
+            const guess = aiGuardGuess(cur, playerId, t);
+            guardGuess(cur, t, guess);
+            set({ state: { ...cur } });
+          }, TARGET_RESOLVE_DELAY);
+        }
+        return;
+      }
+      if (s.phase === 'CHANCELLOR_DISCARD') {
+        const drawn = s.pending.chancellorDrawn ?? [];
+        const order = aiChancellorReturn(s, playerId, drawn);
+        chancellorReturnCards(s, order);
+        set({ state: { ...s } });
+        return;
+      }
+    },
   },
-
-  handleDrawnCardClick: (cardName) => set({ selectedDrawnCard: cardName }),
-
-  handleConfirmDrawnCard: () => {
-    const { gameState, selectedDrawnCard } = get();
-    if (!gameState || !selectedDrawnCard) return;
-    const newState = chooseDrawnCard(gameState, selectedDrawnCard);
-    set({ gameState: newState, selectedDrawnCard: null });
-  },
-
-  handleConfirmTurn: () => {
-    const { gameState } = get();
-    if (!gameState) return;
-    const newState = advanceToNextTurn(gameState);
-    set({ gameState: newState, waitingForNextTurn: false });
-  },
-
-  executeAITurn: () => {
-    const { gameState } = get();
-    if (!gameState) return;
-    const currentPlayer = gameState.players[gameState.currentPlayerIndex];
-    if (currentPlayer.type === 'human') return;
-    console.log(`[Store] executeAITurn被调用，AI玩家: ${currentPlayer.name}`);
-    const newState = takeAITurn(gameState, makeChancellorChoice);
-    console.log(`[Store] AI回合完成，新状态message: ${newState.message}`);
-    set({ gameState: newState });
-  },
-
-  canPlayCard: () => {
-    const { selectedCard, targetPlayerId, guardGuess } = get();
-    if (!selectedCard) return false;
-    if (['Guard', 'Priest', 'Baron', 'Prince', 'King'].includes(selectedCard)) {
-      if (targetPlayerId === null) return false;
-    }
-    if (selectedCard === 'Guard' && !guardGuess) return false;
-    return true;
-  },
-
-  getCurrentPlayer: () => {
-    const { gameState } = get();
-    if (!gameState) return null;
-    return gameState.players[gameState.currentPlayerIndex];
-  },
-
-  getValidTargetsForSelectedCard: () => {
-    const { gameState, selectedCard } = get();
-    if (!gameState || !selectedCard) return [];
-    return getValidTargets(gameState, selectedCard);
-  },
-
-  getValidGuessesList: () => getValidGuesses(),
 }));

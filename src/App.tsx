@@ -1,30 +1,26 @@
 import { useState } from 'react';
-import type { PlayerType } from './types';
-import SetupScreen from './SetupScreen';
-import Game from './Game';
+import { SetupScreen } from './components/SetupScreen';
+import { Game } from './components/Game';
+import { GameOverModal } from './components/GameOverModal';
+import { useGameStore } from './store/gameStore';
 
-function App() {
-  const [gameStarted, setGameStarted] = useState(false);
-  const [aiTypes, setAiTypes] = useState<PlayerType[]>([]);
+export function App() {
+  const [started, setStarted] = useState(false);
+  const state = useGameStore((s) => s.state);
+  const newGame = useGameStore((s) => s.actions.newGame);
 
-  const handleStart = (_count: number, ais: PlayerType[]) => {
-    setAiTypes(ais);
-    setGameStarted(true);
-  };
-
-  const handleRestart = () => {
-    setGameStarted(false);
-  };
-
+  if (!started) {
+    return <SetupScreen onStart={(aiCount) => { newGame(aiCount); setStarted(true); }} />;
+  }
   return (
-    <div className="app">
-      {!gameStarted ? (
-        <SetupScreen onStart={handleStart} />
-      ) : (
-        <Game aiTypes={aiTypes} onRestart={handleRestart} />
+    <>
+      <Game />
+      {state.phase === 'GAME_OVER' && state.winner != null && (
+        <GameOverModal
+          winnerName={state.players[state.winner].name}
+          onRestart={() => { setStarted(false); }}
+        />
       )}
-    </div>
+    </>
   );
 }
-
-export default App;
