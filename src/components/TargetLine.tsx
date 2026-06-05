@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import type { RefObject } from 'react';
 
 interface Props {
   containerClassName?: string;
@@ -7,9 +8,10 @@ interface Props {
   slotRefs: React.MutableRefObject<Record<string, HTMLDivElement | null>>;
   slotToPlayerId: Record<string, number>;
   delay?: number; // 等待目标选择完成后再展示
+  containerRef?: RefObject<HTMLElement | null>; // 显式容器（移动端用,避免 closest('.grid') 误中）
 }
 
-export function TargetLine({ containerClassName, fromSlot, toPlayerId, slotRefs, slotToPlayerId, delay = 250 }: Props) {
+export function TargetLine({ containerClassName, fromSlot, toPlayerId, slotRefs, slotToPlayerId, delay = 250, containerRef }: Props) {
   const [coords, setCoords] = useState<{ x1: number; y1: number; x2: number; y2: number; len: number } | null>(null);
   const [visible, setVisible] = useState(false);
   const [animKey, setAnimKey] = useState(0);
@@ -46,7 +48,7 @@ export function TargetLine({ containerClassName, fromSlot, toPlayerId, slotRefs,
       const toEl = slotRefs.current[toSlot];
       if (!fromEl || !toEl) return;
 
-      const container = fromEl.closest('.grid');
+      const container = containerRef?.current ?? fromEl.closest('.grid');
       if (!container) return;
 
       const c = container.getBoundingClientRect();
@@ -80,7 +82,7 @@ export function TargetLine({ containerClassName, fromSlot, toPlayerId, slotRefs,
     update();
     window.addEventListener('resize', update);
     return () => window.removeEventListener('resize', update);
-  }, [visible, fromSlot, toPlayerId, slotRefs, slotToPlayerId]);
+  }, [visible, fromSlot, toPlayerId, slotRefs, slotToPlayerId, containerRef]);
 
   if (!visible || !coords) return null;
 

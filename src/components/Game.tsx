@@ -78,6 +78,8 @@ export function Game() {
 
   // 玩家 DOM ref 映射（用于绘制目标线）
   const slotRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  // 移动端布局根 ref（用于目标线坐标计算）
+  const mobileRootRef = useRef<HTMLDivElement>(null);
 
   // 围坐席位分配
   const aiPlayers = state.players.filter((p) => !p.isHuman);
@@ -162,6 +164,7 @@ export function Game() {
         discards={discardsByPlayer[p.id] ?? []}
         elementRef={(el) => { slotRefs.current[slot] = el; }}
         compact={isMobile}
+        hideDiscards={isMobile}
       />
     );
   };
@@ -214,66 +217,59 @@ export function Game() {
   );
 
   const mobileLayout = (
-    <div className="flex-1 flex flex-col min-h-0 relative">
-      {/* 对手横排：可横向滚动 */}
-      <div className="flex gap-2 overflow-x-auto px-2 py-2 border-b border-slate-700/60 shrink-0">
+    <div ref={mobileRootRef} className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
+      {/* 对手区:2 列网格,无滚动,自适配 1-5 人 */}
+      <div className="grid grid-cols-2 gap-1.5 p-1.5 content-start flex-1 min-h-0 overflow-hidden">
         {Object.entries(seats).map(([slot, p]) =>
           p ? (
-            <div key={slot} className="shrink-0 w-44">
-              {renderSeat(slot)}
+            <div
+              key={slot}
+              className={aiPlayers.length === 1 ? 'col-span-2' : undefined}
+              style={aiPlayers.length === 1 ? { maxWidth: 360, justifySelf: 'center', width: '100%' } : undefined}
+            >
+              {renderSeat(slot, aiPlayers.length === 1 ? 360 : undefined)}
             </div>
           ) : null,
         )}
       </div>
 
-      {/* 中央牌桌 */}
-      <div className="flex-1 min-h-0 p-2 relative">
+      {/* 牌桌 + 目标线 */}
+      <div className="h-24 px-1.5 shrink-0 relative">
         <TableCenter />
-        {showTargetLine && (
-          <TargetLine
-            key={lineKey}
-            containerClassName="absolute inset-0 pointer-events-none"
-            fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
-            toPlayerId={pendingTargetId}
-            slotRefs={slotRefs}
-            slotToPlayerId={slotToPlayerId}
-          />
-        )}
       </div>
 
-      {/* 底部手牌 */}
-      <div className="px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] border-t border-amber-500/30 bg-slate-900/60 shrink-0">
+      {/* 手牌 */}
+      <div
+        className="px-1.5 pt-1.5 border-t border-amber-500/30 bg-slate-900/60 shrink-0"
+        style={{ paddingBottom: 'max(0.375rem, env(safe-area-inset-bottom))' }}
+      >
         {renderHumanHand()}
       </div>
 
-      {/* 日志抽屉 */}
-      {logOpen && (
-        <div className="fixed inset-0 z-40 flex items-end" onClick={() => setLogOpen(false)}>
-          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
-          <div
-            className="relative w-full max-h-[70vh] bg-slate-900 border-t-2 border-amber-500/50 rounded-t-2xl p-3 flex flex-col pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-amber-300 font-bold text-sm">📜 游戏日志</h2>
-              <button
-                onClick={() => setLogOpen(false)}
-                className="w-9 h-9 rounded-full bg-slate-700 text-slate-200 active:scale-95"
-                aria-label="关闭"
-              >✕</button>
-            </div>
-            <div className="flex-1 overflow-y-auto min-h-0">
-              <GameLog />
-            </div>
-          </div>
-        </div>
+      {/* 日志条:内嵌最近 3 条 */}
+      <MiniLog onExpand={() => setLogOpen(true)} />
+
+      {/* 目标线:全屏覆盖 */}
+      {showTargetLine && (
+        <TargetLine
+          key={lineKey}
+          containerClassName="absolute inset-0 pointer-events-none"
+          containerRef={mobileRootRef}
+          fromSlot={currentPlayer.isHuman ? 'player' : (Object.entries(slotToPlayerId).find(([, id]) => id === state.currentPlayerIndex)?.[0] ?? null)}
+          toPlayerId={pendingTargetId}
+          slotRefs={slotRefs}
+          slotToPlayerId={slotToPlayerId}
+        />
       )}
+
+      {/* 全量日志弹层 */}
+      {logOpen && <FullLogOverlay onClose={() => setLogOpen(false)} />}
     </div>
   );
 
   return (
-    <div className="h-dvh flex flex-col">
-      <GameHeader onToggleLog={isMobile ? () => setLogOpen((v) => !v) : undefined} />
+    <div className="h-dvh max-w-[100vw] overflow-x-hidden flex flex-col">
+      <GameHeader />
       {isMobile ? mobileLayout : desktopLayout}
 
       {chancellorPhase && isHumanTurn && (
@@ -311,6 +307,73 @@ export function Game() {
           onRestart={() => window.location.reload()}
         />
       )}
+    </div>
+  );
+}
+
+function MiniLog({ onExpand }: { onExpand: () => void }) {
+  const events = useGameStore((s) => s.state.log.slice(-3));
+  return (
+    <div className="h-14 px-2 border-t border-slate-700/60 bg-slate-900/40 shrink-0 flex items-center gap-2 overflow-hidden">
+      <span className="text-amber-300/80 text-xs shrink-0" aria-hidden>📜</span>
+      <div className="flex-1 min-w-0 flex flex-col justify-center text-[11px] leading-tight gap-0.5 overflow-hidden">
+        {events.length === 0 ? (
+          <span className="text-slate-500 truncate">暂无日志</span>
+        ) : (
+          events.map((e) => (
+            <div key={e.id} className="truncate text-slate-300">
+              {e.text}
+            </div>
+          ))
+        )}
+      </div>
+      <button
+        onClick={onExpand}
+        className="text-[10px] text-amber-400 shrink-0 px-2 py-1 rounded active:bg-slate-700 min-h-[28px]"
+        aria-label="查看全部日志"
+      >
+        全部
+      </button>
+    </div>
+  );
+}
+
+function FullLogOverlay({ onClose }: { onClose: () => void }) {
+  const log = useGameStore((s) => s.state.log);
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-slate-900/95 backdrop-blur flex flex-col"
+      role="dialog"
+      aria-label="游戏日志"
+    >
+      <div className="flex items-center justify-between p-3 border-b border-amber-500/30 shrink-0">
+        <h2 className="text-amber-300 font-bold text-sm">📜 游戏日志</h2>
+        <button
+          onClick={onClose}
+          className="w-9 h-9 rounded-full bg-slate-700 text-slate-200 active:scale-95"
+          aria-label="关闭"
+        >✕</button>
+      </div>
+      <div className="flex-1 overflow-y-auto p-3 space-y-1 text-xs">
+        {log.length === 0 ? (
+          <div className="text-slate-500 text-center py-8">暂无日志</div>
+        ) : (
+          log.map((e) => (
+            <div
+              key={e.id}
+              className={`px-2 py-1.5 rounded ${
+                e.text.includes('出局') || e.text.includes('全局胜利')
+                  ? 'bg-rose-900/40 text-rose-200'
+                  : e.text.includes('摸到') || e.text.includes('打出')
+                  ? 'bg-amber-900/20 text-amber-100'
+                  : 'text-slate-300'
+              }`}
+            >
+              {e.text}
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }

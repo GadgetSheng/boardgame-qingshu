@@ -16,6 +16,7 @@ interface Props {
   discards?: Card[];
   elementRef?: (el: HTMLDivElement | null) => void;
   compact?: boolean;
+  hideDiscards?: boolean;
 }
 
 export function PlayerArea({
@@ -32,20 +33,21 @@ export function PlayerArea({
   discards = [],
   elementRef,
   compact = false,
+  hideDiscards = false,
 }: Props) {
   if (!player.alive) {
     return (
       <div
         ref={elementRef}
-        className="bg-slate-900/40 border border-slate-700 rounded-lg p-2 opacity-50"
+        className="bg-slate-900/40 border border-slate-700 rounded-lg p-1.5 opacity-50"
         style={width ? { width } : undefined}
       >
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-slate-500 line-through">{player.name}</span>
-          <span className="text-xs text-rose-500">已出局</span>
+        <div className="flex items-center justify-between text-[11px]">
+          <span className="text-slate-500 line-through truncate">{player.name}</span>
+          <span className="text-[10px] text-rose-500 shrink-0 ml-1">出局</span>
         </div>
-        {discards.length > 0 && (
-          <div className="mt-1 flex gap-1 flex-wrap">
+        {!hideDiscards && discards.length > 0 && (
+          <div className="mt-1 flex gap-0.5 flex-wrap">
             {discards.map((c) => (
               <CardView key={c.id} card={c} size="sm" forceFaceUp />
             ))}
@@ -64,17 +66,18 @@ export function PlayerArea({
       ref={elementRef}
       onClick={isTargetable ? () => onSelectPlayer?.(player.id) : undefined}
       className={clsx(
-        'rounded-lg p-2 border-2 transition-all',
+        'rounded-lg border-2 transition-all',
+        compact ? 'p-1.5' : 'p-2',
         isCurrentTurn
           ? 'bg-amber-900/40 border-amber-400 shadow-lg shadow-amber-500/20'
           : 'bg-slate-800/60 border-slate-700',
         player.protected && 'ring-2 ring-emerald-400',
-        isTargetable && 'cursor-pointer hover:border-rose-400 hover:scale-[1.02]',
+        isTargetable && 'cursor-pointer hover:border-rose-400 active:scale-[0.98]',
       )}
       style={width ? { width } : undefined}
     >
-      <div className="flex items-center justify-between mb-1.5 text-sm">
-        <div className="flex items-center gap-1.5 min-w-0">
+      <div className={clsx('flex items-center justify-between', compact ? 'mb-0.5 text-[11px]' : 'mb-1.5 text-sm')}>
+        <div className="flex items-center gap-1 min-w-0">
           <span
             className={clsx(
               'font-bold truncate',
@@ -82,22 +85,18 @@ export function PlayerArea({
             )}
           >
             {player.name}
-            {player.isHuman && <span className="text-xs ml-1 text-amber-400">(你)</span>}
           </span>
-          {player.protected && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-600 text-white rounded shrink-0">🛡</span>
-          )}
-          {player.usedSpy && (
-            <span className="text-[10px] px-1.5 py-0.5 bg-slate-600 text-slate-200 rounded shrink-0">🕵</span>
-          )}
+          {player.protected && <span className="text-[10px] shrink-0">🛡</span>}
+          {player.usedSpy && <span className="text-[10px] shrink-0">🕵</span>}
         </div>
-        <span className="text-amber-300 font-bold text-sm shrink-0" title="胜利标记">
-          🏆 {player.tokens}
+        <span className="text-amber-300 font-bold shrink-0 ml-1" title="胜利标记">
+          🏆{player.tokens}
         </span>
       </div>
       <div
         className={clsx(
-          'flex gap-1.5',
+          'flex',
+          compact ? 'gap-0.5' : 'gap-1.5',
           facing === 'top' ? 'justify-end' : facing === 'side' ? 'justify-center' : 'justify-start',
         )}
       >
@@ -120,23 +119,21 @@ export function PlayerArea({
           ))
         )}
       </div>
-      {discards.length > 0 && (
-        <div className="mt-1.5 pt-1.5 border-t border-slate-700/60">
-          <div className="text-[10px] text-slate-500 mb-0.5">弃牌</div>
+      {!hideDiscards && discards.length > 0 && (
+        <div className={clsx('border-t border-slate-700/60', compact ? 'mt-0.5 pt-0.5' : 'mt-1.5 pt-1.5')}>
           <div
-            className={clsx(
-              'flex gap-1 flex-wrap',
-              facing === 'top' ? 'justify-end' : facing === 'side' ? 'justify-center' : 'justify-start',
-            )}
+            className={clsx('flex', compact ? 'gap-0.5' : 'gap-1 flex-wrap')}
           >
-            {discards.map((c) => (
+            {discards.slice(-(compact ? 3 : 6)).map((c) => (
               <CardView key={c.id} card={c} size="sm" forceFaceUp />
             ))}
           </div>
         </div>
       )}
       {mustDiscard && (
-        <div className="mt-1 text-[10px] text-rose-300">⚠ 强制出 [女伯爵]</div>
+        <div className={clsx('text-rose-300', compact ? 'mt-0.5 text-[9px]' : 'mt-1 text-[10px]')}>
+          ⚠ 强制出 [女伯爵]
+        </div>
       )}
     </div>
   );

@@ -12,7 +12,6 @@
     -webkit-font-smoothing: antialiased;
     overscroll-behavior: none;
     touch-action: manipulation;
-    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
   }
   button, [role="button"] {
     touch-action: manipulation;
