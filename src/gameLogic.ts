@@ -204,7 +204,7 @@ export function playCard(state: GameState, cardId: string): GameState {
 
   switch (card.name) {
     case '公主':
-      eliminatePlayer(state, p.id, '打出公主', card);
+      eliminatePlayer(state, p.id, '打出公主', { card });
       advanceTurn(state);
       return state;
     case '女伯爵':
@@ -387,7 +387,7 @@ export function guardGuess(state: GameState, targetId: number, guess: CardName):
   ];
   if (target.hand[0]?.name === guess) {
     pushLog(state, events, `${p.name} 用卫兵猜 [${target.name}] 是 [${guess}]，猜中！${target.name} 出局。`);
-    eliminatePlayer(state, targetId, `被卫兵猜中持 [${guess}]`, target.hand[0]);
+    eliminatePlayer(state, targetId, `被卫兵猜中持 [${guess}]`, { card: target.hand[0] });
   } else {
     pushLog(
       state,
