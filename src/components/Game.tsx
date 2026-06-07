@@ -169,7 +169,6 @@ export function Game() {
         discards={discardsByPlayer[p.id] ?? []}
         elementRef={(el) => { slotRefs.current[slot] = el; }}
         compact={isMobile}
-        hideDiscards={isMobile}
         seatIndex={playerIdToSeat[p.id]}
       />
     );
@@ -225,8 +224,8 @@ export function Game() {
 
   const mobileLayout = (
     <div ref={mobileRootRef} className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
-      {/* 对手区:2 列网格,无滚动,自适配 1-5 人 */}
-      <div className="grid grid-cols-2 gap-1.5 p-1.5 content-start flex-1 min-h-0 overflow-hidden">
+      {/* 对手区:2 列网格,可纵向滚动,自适配 1-5 人 */}
+      <div className="grid grid-cols-2 gap-1 p-1 content-start flex-1 min-h-0 overflow-y-auto">
         {Object.entries(seats).map(([slot, p]) =>
           p ? (
             <div

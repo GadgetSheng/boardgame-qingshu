@@ -22,7 +22,7 @@ interface Props {
   forceFaceUp?: boolean;
   /** 是否可 hover 翻牌（AI 手牌、移除堆） */
   peekOnHover?: boolean;
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
   selected?: boolean;
   onClick?: () => void;
   dim?: boolean;
@@ -40,10 +40,35 @@ export function Card({
   className,
 }: Props) {
   const sizeClass = {
+    xs: 'w-8 h-11 text-[10px]',
     sm: 'w-12 h-16 text-xs',
     md: 'w-20 h-28 text-sm',
     lg: 'w-24 h-36 text-base',
   }[size];
+
+  const valueFontClass = {
+    xs: 'text-sm',
+    sm: 'text-base',
+    md: 'text-2xl',
+    lg: 'text-2xl',
+  }[size];
+
+  const nameFontClass = {
+    xs: 'text-[8px] leading-[1]',
+    sm: 'text-[9px] leading-tight',
+    md: '',
+    lg: '',
+  }[size];
+
+  const backSymbolClass = {
+    xs: 'text-base',
+    sm: 'text-lg',
+    md: 'text-2xl',
+    lg: 'text-2xl',
+  }[size];
+
+  const padClass = size === 'xs' ? 'p-0.5' : 'p-1';
+  const showBackLabel = size !== 'xs' && size !== 'sm';
 
   if (!card) {
     return (
@@ -73,7 +98,8 @@ export function Card({
         <div
           onClick={onClick}
           className={clsx(
-            'rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between p-1 shadow-md transition-all w-full h-full',
+            'rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between shadow-md transition-all w-full h-full',
+            padClass,
             colorClass,
             onClick && 'cursor-pointer hover:scale-105 hover:shadow-xl',
             selected && 'ring-4 ring-amber-400 scale-105',
@@ -81,8 +107,8 @@ export function Card({
             className,
           )}
         >
-          <div className="text-2xl font-bold text-white drop-shadow">{card.value}</div>
-          <div className="text-white font-bold text-center leading-tight drop-shadow">
+          <div className={clsx('font-bold text-white drop-shadow', valueFontClass)}>{card.value}</div>
+          <div className={clsx('text-white font-bold text-center leading-tight drop-shadow', nameFontClass)}>
             {card.name}
           </div>
         </div>
@@ -123,20 +149,23 @@ export function Card({
           )}
         >
           <div className="flex flex-col items-center gap-0.5">
-            <div className="text-2xl drop-shadow">❀</div>
-            <div className="text-[9px] tracking-widest opacity-80">LOVE LETTER</div>
+            <div className={clsx('drop-shadow', backSymbolClass)}>❀</div>
+            {showBackLabel && (
+              <div className="text-[9px] tracking-widest opacity-80">LOVE LETTER</div>
+            )}
           </div>
         </div>
         {/* 正面：旋转 180° 藏在背面下 */}
         <div
           className={clsx(
-            'absolute inset-0 rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between p-1 shadow-md [backface-visibility:hidden] [transform:rotateY(180deg)]',
+            'absolute inset-0 rounded-lg border-2 bg-gradient-to-br flex flex-col items-center justify-between shadow-md [backface-visibility:hidden] [transform:rotateY(180deg)]',
+            padClass,
             colorClass,
             dim && 'opacity-70',
           )}
         >
-          <div className="text-2xl font-bold text-white drop-shadow">{card.value}</div>
-          <div className="text-white font-bold text-center leading-tight drop-shadow">
+          <div className={clsx('font-bold text-white drop-shadow', valueFontClass)}>{card.value}</div>
+          <div className={clsx('text-white font-bold text-center leading-tight drop-shadow', nameFontClass)}>
             {card.name}
           </div>
         </div>

@@ -59,9 +59,9 @@ export function PlayerArea({
           <span className="text-[10px] text-rose-500 shrink-0 ml-1">出局</span>
         </div>
         {!hideDiscards && discards.length > 0 && (
-          <div className="mt-1 flex gap-0.5 flex-wrap">
+          <div className="mt-1 flex flex-wrap gap-0.5">
             {discards.map((c) => (
-              <CardView key={c.id} card={c} size="sm" forceFaceUp />
+              <CardView key={c.id} card={c} size={compact ? 'xs' : 'sm'} forceFaceUp />
             ))}
           </div>
         )}
@@ -147,11 +147,9 @@ export function PlayerArea({
       </div>
       {!hideDiscards && discards.length > 0 && (
         <div className={clsx('border-t border-slate-700/60', compact ? 'mt-0.5 pt-0.5' : 'mt-1.5 pt-1.5')}>
-          <div
-            className={clsx('flex', compact ? 'gap-0.5' : 'gap-1 flex-wrap')}
-          >
-            {discards.slice(-(compact ? 3 : 6)).map((c) => (
-              <CardView key={c.id} card={c} size="sm" forceFaceUp />
+          <div className={clsx('flex flex-wrap', compact ? 'gap-0.5' : 'gap-1')}>
+            {discards.map((c) => (
+              <CardView key={c.id} card={c} size={compact ? 'xs' : 'sm'} forceFaceUp />
             ))}
           </div>
         </div>
