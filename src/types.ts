@@ -48,6 +48,10 @@ export interface LogEntry {
   turn: number;
   text: string;
   events: LogEvent[];
+  /** 仅 knownBy 玩家可见的补充片段;其他玩家看到 ** */
+  secret?: string;
+  /** 能看到 secret 的玩家 ID 列表 */
+  knownBy?: number[];
 }
 
 export type GamePhase =

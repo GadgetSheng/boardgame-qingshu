@@ -3,6 +3,7 @@ import {
   type Card,
   type CardName,
   type GameState,
+  type LogEntry,
   type LogEvent,
   type Player,
 } from './types';
@@ -106,14 +107,27 @@ export function initGame(
   return state;
 }
 
-function pushLog(state: GameState, events: LogEvent[], text: string) {
+function pushLog(
+  state: GameState,
+  events: LogEvent[],
+  text: string,
+  opts?: { secret?: string; knownBy?: number[] },
+) {
   state.logIdCounter += 1;
-  state.log.push({
+  const entry: LogEntry = {
     id: state.logIdCounter,
     turn: state.turn,
     text,
     events,
-  });
+  };
+  if (opts?.secret) {
+    entry.secret = opts.secret;
+    entry.knownBy = opts.knownBy;
+  }
+  state.log.push(entry);
+  const full = opts?.secret ? `${text}${opts.secret}` : text;
+  // eslint-disable-next-line no-console
+  console.log(`[log#${entry.id} t${entry.turn}] ${full}`);
 }
 
 function currentPlayer(state: GameState): Player {
@@ -164,7 +178,11 @@ export function playerDrawPhase(state: GameState) {
   pushLog(
     state,
     events,
-    `[回合 ${state.round}·${state.turn}] ${p.name} 摸到 [${card.name}]。手牌: ${p.hand.map((c) => c.name).join(' / ')}`,
+    `[回合 ${state.round}·${state.turn}] ${p.name} 摸了 1 张牌。`,
+    {
+      secret: ` 抽到 [${card.name}]，手牌: ${p.hand.map((c) => c.name).join(' / ')}`,
+      knownBy: [p.id],
+    },
   );
 }
 
@@ -268,7 +286,11 @@ function startChancellor(state: GameState) {
     pushLog(
       state,
       [],
-      `[大臣] ${currentPlayer(state).name} 抽了 ${drawn.map((c) => c.name).join(' / ')}。从 3 张中选 2 张按顺序放牌库底。`,
+      `[大臣] ${currentPlayer(state).name} 抽了 2 张牌，从 3 张中选 2 张按顺序放牌库底。`,
+      {
+        secret: ` 实际抽到: ${drawn.map((c) => c.name).join(' / ')}`,
+        knownBy: [currentPlayer(state).id],
+      },
     );
   }
 }
@@ -297,13 +319,22 @@ export function chancellorReturnCards(
   pushLog(
     state,
     [],
-    `[大臣] ${p.name} 留 [${keep?.name ?? '空'}]，把 [${valid.map((c) => c.name).join(' / ')}] 放回牌库底。`,
+    `[大臣] ${p.name} 从 3 张中选 1 张留手牌，其余按顺序放牌库底。`,
+    {
+      secret: ` 留 [${keep?.name ?? '空'}]，把 [${valid.map((c) => c.name).join(' / ')}] 放回牌库底。`,
+      knownBy: [p.id],
+    },
   );
   advanceTurn(state);
   return state;
 }
 
-function eliminatePlayer(state: GameState, playerId: number, reason: string, card?: Card) {
+function eliminatePlayer(
+  state: GameState,
+  playerId: number,
+  reason: string,
+  opts?: { reasonSecret?: string; reasonKnownBy?: number[]; card?: Card },
+) {
   const p = state.players[playerId];
   if (!p.alive) return;
   p.alive = false;
@@ -313,12 +344,29 @@ function eliminatePlayer(state: GameState, playerId: number, reason: string, car
   }
   const handNames = p.hand.map((c) => c.name).join(' / ');
   p.hand = [];
-  state.log.push({
-    id: ++state.logIdCounter,
+  const isHuman = playerId === state.humanPlayerId;
+  // 出局者手牌:仅当出局者是人类时公开;否则进入 secret
+  const handSecret = ` 手牌: ${handNames || '无'}。`;
+  const knownBy: number[] = [];
+  if (opts?.reasonKnownBy) knownBy.push(...opts.reasonKnownBy);
+  if (isHuman) knownBy.push(state.humanPlayerId);
+  const fullSecret = [opts?.reasonSecret, handSecret].filter(Boolean).join('');
+  state.logIdCounter += 1;
+  const text = `[出局] ${p.name} - ${reason}。`;
+  const entry: LogEntry = {
+    id: state.logIdCounter,
     turn: state.turn,
-    text: `[出局] ${p.name} - ${reason}。手牌: ${handNames || '无'}。`,
-    events: [{ kind: 'ELIMINATE', player: playerId, reason, card }],
-  });
+    text,
+    events: [{ kind: 'ELIMINATE', player: playerId, reason: `${reason}${opts?.reasonSecret ?? ''}`, card: opts?.card }],
+  };
+  if (fullSecret) {
+    entry.secret = fullSecret;
+    entry.knownBy = Array.from(new Set(knownBy));
+  }
+  state.log.push(entry);
+  const full = `${text}${fullSecret}`;
+  // eslint-disable-next-line no-console
+  console.log(`[log#${entry.id} t${entry.turn}] ${full}`);
 }
 
 // 卫兵
@@ -344,7 +392,12 @@ export function guardGuess(state: GameState, targetId: number, guess: CardName):
     pushLog(
       state,
       events,
-      `${p.name} 用卫兵猜 [${target.name}] 是 [${guess}]，猜错（实际 [${target.hand[0]?.name ?? '无'}]）。`,
+      `${p.name} 用卫兵猜 [${target.name}] 是 [${guess}]，猜错。`,
+    );
+    // 卫兵规则：猜错不告知目标真实手牌；控制台留底供调试
+    // eslint-disable-next-line no-console
+    console.log(
+      `  └─ [卫兵未命中] ${target.name} 实际 [${target.hand[0]?.name ?? '无'}]`,
     );
   }
   state.pending.guardTarget = undefined;
@@ -369,7 +422,11 @@ export function priestView(state: GameState, targetId: number): GameState {
   pushLog(
     state,
     [{ kind: 'TARGET', player: p.id, target: targetId, card: { id: '', name: '神父', value: 2 } }],
-    `${p.name} 神父查看 [${target.name}] 的手牌：[${card?.name ?? '无'}]。`,
+    `${p.name} 神父查看 [${target.name}] 的手牌。`,
+    {
+      secret: ` 实际: [${card?.name ?? '无'}]。`,
+      knownBy: [p.id],
+    },
   );
   state.pending.priestTarget = undefined;
   // 人类施法：暂停进入翻牌动画阶段，等用户确认后再 advanceTurn
@@ -405,15 +462,28 @@ export function baronCompare(state: GameState, targetId: number): GameState {
   const myCard = p.hand[0];
   const theirCard = target.hand[0];
   state.pending.baronTarget = targetId;
+  const humanInvolved = p.id === state.humanPlayerId || target.id === state.humanPlayerId;
   pushLog(
     state,
     [{ kind: 'TARGET', player: p.id, target: targetId, card: { id: '', name: '男爵', value: 3 } }],
-    `${p.name} 男爵与 [${target.name}] 比牌：${p.name}=[${myCard?.name}] ${target.name}=[${theirCard?.name}]。`,
+    `${p.name} 男爵与 [${target.name}] 比牌。`,
+    humanInvolved
+      ? {
+          secret: ` ${p.name}=[${myCard?.name}] ${target.name}=[${theirCard?.name}]。`,
+          knownBy: [state.humanPlayerId],
+        }
+      : undefined,
   );
   if ((myCard?.value ?? 0) < (theirCard?.value ?? 0)) {
-    eliminatePlayer(state, p.id, `男爵比牌败给 ${target.name} [${theirCard?.name}]`);
+    eliminatePlayer(state, p.id, `男爵比牌败给 ${target.name}`, {
+      reasonSecret: ` [${theirCard?.name}]`,
+      reasonKnownBy: humanInvolved ? [state.humanPlayerId] : [],
+    });
   } else if ((myCard?.value ?? 0) > (theirCard?.value ?? 0)) {
-    eliminatePlayer(state, targetId, `男爵比牌输给 ${p.name} [${myCard?.name}]`);
+    eliminatePlayer(state, targetId, `男爵比牌输给 ${p.name}`, {
+      reasonSecret: ` [${myCard?.name}]`,
+      reasonKnownBy: humanInvolved ? [state.humanPlayerId] : [],
+    });
   } else {
     pushLog(state, [], `平手，无人出局。`);
   }
@@ -439,10 +509,17 @@ export function kingSwap(state: GameState, targetId: number): GameState {
   p.hand = theirHand ? [theirHand] : [];
   target.hand = myHand ? [myHand] : [];
   state.pending.kingTarget = targetId;
+  const humanInvolved = p.id === state.humanPlayerId || target.id === state.humanPlayerId;
   pushLog(
     state,
     [{ kind: 'TARGET', player: p.id, target: targetId, card: { id: '', name: '国王', value: 6 } }],
-    `${p.name} 国王与 [${target.name}] 交换手牌。${p.name} 获得 [${theirHand?.name}]，${target.name} 获得 [${myHand?.name}]。`,
+    `${p.name} 国王与 [${target.name}] 交换手牌。`,
+    humanInvolved
+      ? {
+          secret: ` ${p.name} 获得 [${theirHand?.name}]，${target.name} 获得 [${myHand?.name}]。`,
+          knownBy: [state.humanPlayerId],
+        }
+      : undefined,
   );
   state.pending.kingTarget = undefined;
   advanceTurn(state);
@@ -473,21 +550,43 @@ function resolvePrinceOn(state: GameState, targetId: number) {
   if (discarded) {
     state.discard.push({ card: discarded, playerId: targetId });
     target.hand = [];
-    pushLog(state, [], `${target.name} 弃掉 [${discarded.name}]。`);
+    pushLog(
+      state,
+      [],
+      `${target.name} 弃掉 1 张手牌。`,
+      {
+        secret: ` 实际: [${discarded.name}]。`,
+        knownBy: [targetId],
+      },
+    );
     if (discarded.name === '公主') {
-      eliminatePlayer(state, targetId, '被王子弃掉公主');
+      eliminatePlayer(state, targetId, '被王子弃掉公主', {
+        reasonSecret: ` [公主]`,
+        reasonKnownBy: [state.humanPlayerId],
+      });
       return;
     }
   }
   const newCard = drawOne(state);
   if (newCard) {
     target.hand.push(newCard);
-    pushLog(state, [], `${target.name} 摸到 [${newCard.name}]。`);
+    pushLog(state, [], `${target.name} 摸了 1 张新牌。`, {
+      secret: ` 实际: [${newCard.name}]。`,
+      knownBy: [targetId],
+    });
   } else if (state.removed.length > 0) {
     // 特殊规则：王子是最后一张牌打出时，从移除堆拿
     const fromRemoved = state.removed.pop()!;
     target.hand.push(fromRemoved);
-    pushLog(state, [], `牌库已空。${target.name} 从移除堆拿 [${fromRemoved.name}]。`);
+    pushLog(
+      state,
+      [],
+      `牌库已空。${target.name} 从移除堆拿了 1 张牌。`,
+      {
+        secret: ` 实际: [${fromRemoved.name}]。`,
+        knownBy: [targetId],
+      },
+    );
   } else {
     pushLog(state, [], `牌库与移除堆都空，${target.name} 无牌可摸。`);
   }

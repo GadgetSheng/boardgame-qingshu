@@ -44,8 +44,8 @@ export function PlayerArea({
         className="bg-slate-900/40 border border-slate-700 rounded-lg p-1.5 opacity-50"
         style={width ? { width } : undefined}
       >
-        <div className="flex items-center justify-between text-[11px]">
-          <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-1 text-[11px]">
+          <div className="flex items-center gap-1 min-w-0 shrink-0">
             {seatIndex != null && (
               <span
                 className="shrink-0 inline-flex items-center justify-center rounded-full font-bold leading-none w-3.5 h-3.5 text-[9px] bg-slate-700 text-slate-300"
@@ -56,15 +56,15 @@ export function PlayerArea({
             )}
             <span className="text-slate-500 line-through truncate">{player.name}</span>
           </div>
+          {!hideDiscards && discards.length > 0 && (
+            <div className="flex flex-1 min-w-0 flex-wrap justify-end gap-0.5">
+              {discards.map((c) => (
+                <CardView key={c.id} card={c} size={compact ? 'xs' : 'sm'} forceFaceUp />
+              ))}
+            </div>
+          )}
           <span className="text-[10px] text-rose-500 shrink-0 ml-1">出局</span>
         </div>
-        {!hideDiscards && discards.length > 0 && (
-          <div className="mt-1 flex flex-wrap gap-0.5">
-            {discards.map((c) => (
-              <CardView key={c.id} card={c} size={compact ? 'xs' : 'sm'} forceFaceUp />
-            ))}
-          </div>
-        )}
       </div>
     );
   }
@@ -88,8 +88,8 @@ export function PlayerArea({
       )}
       style={width ? { width } : undefined}
     >
-      <div className={clsx('flex items-center justify-between', compact ? 'mb-0.5 text-[11px]' : 'mb-1.5 text-sm')}>
-        <div className="flex items-center gap-1 min-w-0">
+      <div className={clsx('flex items-center', compact ? 'gap-0.5 text-[11px]' : 'gap-1.5 text-sm')}>
+        <div className="flex items-center gap-1 min-w-0 shrink-0">
           {seatIndex != null && (
             <span
               className={clsx(
@@ -115,35 +115,35 @@ export function PlayerArea({
           {player.protected && <span className="text-[10px] shrink-0">🛡</span>}
           {player.usedSpy && <span className="text-[10px] shrink-0">🕵</span>}
         </div>
-        <span className="text-amber-300 font-bold shrink-0 ml-1" title="胜利标记">
+        <div
+          className={clsx(
+            'flex flex-1 min-w-0',
+            compact ? 'gap-0.5' : 'gap-1.5',
+            facing === 'top' ? 'justify-end' : facing === 'side' ? 'justify-center' : 'justify-start',
+          )}
+        >
+          {hand.length === 0 ? (
+            <span className="text-slate-500 text-xs">无手牌</span>
+          ) : (
+            hand.map((c) => (
+              <CardView
+                key={c.id}
+                card={c}
+                size={cardSize}
+                forceFaceUp={isOwnHand}
+                peekOnHover={!isOwnHand}
+                onClick={
+                  onPlayCard && selectableCardIds?.has(c.id) ? () => onPlayCard(c.id) : undefined
+                }
+                selected={selectableCardIds?.has(c.id)}
+                dim={mustDiscard && c.name !== '女伯爵'}
+              />
+            ))
+          )}
+        </div>
+        <span className="text-amber-300 font-bold shrink-0" title="胜利标记">
           🏆{player.tokens}
         </span>
-      </div>
-      <div
-        className={clsx(
-          'flex',
-          compact ? 'gap-0.5' : 'gap-1.5',
-          facing === 'top' ? 'justify-end' : facing === 'side' ? 'justify-center' : 'justify-start',
-        )}
-      >
-        {hand.length === 0 ? (
-          <span className="text-slate-500 text-xs">无手牌</span>
-        ) : (
-          hand.map((c) => (
-            <CardView
-              key={c.id}
-              card={c}
-              size={cardSize}
-              forceFaceUp={isOwnHand}
-              peekOnHover={!isOwnHand}
-              onClick={
-                onPlayCard && selectableCardIds?.has(c.id) ? () => onPlayCard(c.id) : undefined
-              }
-              selected={selectableCardIds?.has(c.id)}
-              dim={mustDiscard && c.name !== '女伯爵'}
-            />
-          ))
-        )}
       </div>
       {!hideDiscards && discards.length > 0 && (
         <div className={clsx('border-t border-slate-700/60', compact ? 'mt-0.5 pt-0.5' : 'mt-1.5 pt-1.5')}>
