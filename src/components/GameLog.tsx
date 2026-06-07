@@ -13,7 +13,7 @@ export function GameLog() {
   return (
     <div className="bg-slate-900/60 border border-slate-700 rounded-lg p-3 h-full flex flex-col">
       <h2 className="text-amber-300 font-bold text-sm mb-2 sticky top-0">📜 游戏日志</h2>
-      <div ref={ref} className="flex-1 overflow-y-auto space-y-1 text-xs">
+      <div ref={ref} className="flex-1 overflow-y-auto scrollbar-thin space-y-1 text-xs">
         {state.log.map((e) => {
           const canSeeSecret = !!e.secret && !!e.knownBy?.includes(me);
           const tail = e.secret

@@ -463,29 +463,38 @@ export function baronCompare(state: GameState, targetId: number): GameState {
   const theirCard = target.hand[0];
   state.pending.baronTarget = targetId;
   const humanInvolved = p.id === state.humanPlayerId || target.id === state.humanPlayerId;
+  const myVal = myCard?.value ?? 0;
+  const theirVal = theirCard?.value ?? 0;
+  const isTie = myVal === theirVal;
+  const myWins = !isTie && myVal > theirVal;
+  const loserName = myWins ? target.name : p.name;
+  const loserCard = myWins ? theirCard : myCard;
+  const winnerCard = myWins ? myCard : theirCard;
   pushLog(
     state,
     [{ kind: 'TARGET', player: p.id, target: targetId, card: { id: '', name: '男爵', value: 3 } }],
-    `${p.name} 男爵与 [${target.name}] 比牌。`,
-    humanInvolved
+    isTie
+      ? `${p.name} 男爵与 [${target.name}] 比牌。`
+      : `${p.name} 男爵与 [${target.name}] 比牌。失败者 [${loserName}] 出 [${loserCard?.name}]。`,
+    !isTie && humanInvolved
       ? {
-          secret: ` ${p.name}=[${myCard?.name}] ${target.name}=[${theirCard?.name}]。`,
+          secret: ` 胜者 [${winnerCard?.name}]。`,
           knownBy: [state.humanPlayerId],
         }
       : undefined,
   );
-  if ((myCard?.value ?? 0) < (theirCard?.value ?? 0)) {
-    eliminatePlayer(state, p.id, `男爵比牌败给 ${target.name}`, {
-      reasonSecret: ` [${theirCard?.name}]`,
-      reasonKnownBy: humanInvolved ? [state.humanPlayerId] : [],
-    });
-  } else if ((myCard?.value ?? 0) > (theirCard?.value ?? 0)) {
+  if (isTie) {
+    pushLog(state, [], `平手，无人出局。`);
+  } else if (myWins) {
     eliminatePlayer(state, targetId, `男爵比牌输给 ${p.name}`, {
       reasonSecret: ` [${myCard?.name}]`,
       reasonKnownBy: humanInvolved ? [state.humanPlayerId] : [],
     });
   } else {
-    pushLog(state, [], `平手，无人出局。`);
+    eliminatePlayer(state, p.id, `男爵比牌败给 ${target.name}`, {
+      reasonSecret: ` [${theirCard?.name}]`,
+      reasonKnownBy: humanInvolved ? [state.humanPlayerId] : [],
+    });
   }
   state.pending.baronTarget = undefined;
   advanceTurn(state);
