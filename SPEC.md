@@ -189,3 +189,183 @@ IDLE (回合开始) → MUST_DISCARD (强制女伯爵)
 - [ ] 日志记录全过程
 - [ ] AI 不出非法牌
 - [ ] 浏览器跑通
+
+## 11. 修订与对齐记录
+
+追加章节。汇总代码已落地、但前 10 章未覆盖或不一致的所有非样式改动。
+
+### 11.1 牌数值校准（修正第 2 章表）
+
+| 牌名 | SPEC 原值 | 代码现值 |
+|------|----------|---------|
+| 公主 | 8 | 9 |
+| 女伯爵 | 7 | 8 |
+| 国王 | 6 | 7 |
+| 大臣 | 5 | 6 |
+| 王子 | 5 | 5（不变） |
+| 侍女 | 4 | 4（不变） |
+| 男爵 | 3 | 3（不变） |
+| 神父 | 2 | 2（不变） |
+| 卫兵 | 1 | 1（不变） |
+| 间谍 | 0 | 0（不变） |
+
+21 张总张数、开局移除 1 张剩 20 张 — 不变。
+
+### 11.2 牌效果调整
+
+**大臣**（取代第 2 章表内描述）
+- SPEC 旧：摸 1 张牌，可从手中选 1 张放回牌库底，保留另一张
+- 代码现：摸 **2** 张，从原手牌 1 张 + 抽到 2 张 共 3 张中选 **1** 张留手牌，其余按指定顺序放回牌库底
+- 牌库只够抽 1 张时只放回 1 张，2 张都不够时直接结算（无牌可抽）
+- 抽牌池为空时不下发选牌 UI，直接 advanceTurn
+
+**间谍**（取代第 2 章表内描述）
+- SPEC 旧：摸 1 张牌（牌库顶），选 (a) 放回牌库顶 或 (b) 弃该牌让自己本轮免疫
+- 代码现：**无即时效果**。打出后标记 `usedSpy=true`；本局结算时
+  - 唯一打出间谍且存活到最后的玩家 → +1 胜利标记
+  - 多人打出间谍 → 无人得奖励
+- 第 3 章「免疫失效」中"间谍(b 路径)"已不存在，**只剩侍女提供免疫**
+
+**王子**（追加第 2 章表内描述）
+- 附加规则：王子是最后一张牌打出后，若牌库已空 → 从开局 `removed` 堆拿 1 张牌给目标
+- `removed` 也空 → 目标无牌可摸，log 记录
+
+### 11.3 多局制 + 胜利标记
+
+第 3 章「胜负判定」改为多局累计：
+
+**胜利标记目标（`targetTokens`）**
+- 2 人局：3 个
+- 3-4 人局：4 个
+- 5-6 人局：5 个
+
+**单局胜负**（任一触发 → `endRound`）
+- 仅剩 1 存活玩家 → 该玩家 +1
+- 牌库摸完时进入 `FINAL_REVEAL` 亮牌动画
+  - 持牌数值最大者 +1
+  - 数值相同（平局）→ 平局玩家各 +1
+- 全部存活玩家均死亡 → 无人 +1，本局无胜者
+
+**全局胜利**
+- 任何玩家 `tokens >= targetTokens` → `phase = GAME_OVER`
+- 未达成 → 自动 `startNextRound`：回收 deck + discard + removed + removedPublic + 玩家手牌 全部洗牌重发，暗抽 1 张作新 removed，重置 alive/hand/protected/usedSpy
+
+**公主自爆**
+- 公主打出仅令出牌者出局，**不**触发单局胜负（除非因此变成剩 1 人）
+
+### 11.4 神父查看 → 翻牌动画
+
+- 人类施法 → 进入 `PRIEST_REVEAL` 阶段，暂停推进
+- 翻牌动画：背面 → 旋转 180° 展示目标手牌 → 旋转回背面，共 3s
+- 用户点空白 / 等自动结束 → 调 `priestRevealDismissAction` 推进
+- AI 施法：跳过动画，直接 `advanceTurn`
+
+### 11.5 牌库耗尽 → 亮牌动画
+
+- `advanceTurn` 检测 `deck.length === 0` → 计算胜者 → 进入 `FINAL_REVEAL`
+- 亮牌动画：所有存活玩家手牌同时翻牌，胜者牌加 ring + pulse 高亮
+- 3.5s 后用户点空白 / 自动结束 → 调 `finalRevealAction` 真正结算本局（`endRound` → 检查全局胜利 → `startNextRound`）
+
+### 11.6 目标线动画
+
+- 选目标阶段（`PRINCE/KING/BARON/PRIEST/GUARD` 任一）显示从出牌者 DOM 中心到目标 DOM 中心的动画线
+- 包含：阴影线 + 发光主线（CSS draw 动画 0.45s） + 起点脉冲 + 终点爆炸 + 粒子飞行
+- 选完目标后 250ms 延时展示，给 UI 选中动画留缓冲
+- `pendingTargetId` 变化时重启动画（`lineKey`）
+
+### 11.7 日志私密内容
+
+`LogEntry` 新增 `secret?: string` + `knownBy?: number[]`：
+
+- `secret` 仅对 `knownBy` 内的玩家可见
+- 其他玩家看到 `**` 遮蔽
+- 完整内容含 `secret` 写浏览器控制台（调试用）
+- 鼠标 hover 遮蔽条目提示「被遮蔽的内容在浏览器控制台有完整记录」
+
+私密内容场景：
+- 摸牌结果 → 仅本人
+- 抽到/被弃牌 → 仅本人
+- 大臣选牌结果 → 仅本人
+- 神父查看 → 仅出牌者
+- 国王交换 → 仅涉事双方 + 人类
+- 男爵比牌 → 仅涉事双方 + 人类
+- 玩家出局手牌 → 仅人类出局时公开，否则私密
+
+### 11.8 状态机扩展
+
+第 9 章追加阶段：
+
+- `CHANCELLOR_DISCARD` — 大臣：3 张中选 1 张留手牌，其余按指定顺序放牌库底
+- `PRIEST_REVEAL` — 神父：人类查看后翻牌动画阶段，等用户 dismiss 才推进
+- `FINAL_REVEAL` — 牌库耗尽：所有存活玩家亮牌动画阶段，等用户 dismiss 才结算
+
+`PendingState` 字段：
+- `chancellorDrawn?: Card[]` — 大臣抽到的 2 张
+- `priestRevealed?: { targetId; card: Card | null }` — 神父翻牌动画上下文
+- `finalReveal?: { winnerId; reason; tiedIds? }` — 亮牌结算上下文
+
+### 11.9 关键修复记录
+
+| 提交 | 类别 | 改动 |
+|------|------|------|
+| 0712b16 | API 重构 | `eliminatePlayer` 改用 `opts` 对象传 `reasonSecret` / `reasonKnownBy` / `card`，所有调用点同步 |
+| 2a7d148 | bug | 弃牌按玩家分组归属显示；摸牌后手牌上限校验 |
+| 36be50f | 规则+UI | 译名统一「伯爵夫人」→「女伯爵」；牌库耗尽亮牌流程；目标线动画 |
+| ea433b9 | feature | 神父人类施法时 PRIEST_REVEAL 翻牌交互 |
+| 32fbe95 | 规则 | 王子是最后一张牌打出且牌库空 → 从 removed 堆拿牌 |
+| 7c10a21 | 规则 | 新增 `removed` 字段；`initGame` 暗抽 1 张作开局移除 |
+| abf7b24 | 规则 | 跟踪 `usedSpy` 字段，局末结算间谍奖励 |
+| acaf6dd | bug | `checkSpyBonus` / `checkWinCondition` 条件修正 |
+| 909b8e6 | bug | `handlePrince` 改用 immutable 模式处理 `removed` |
+| b00c818 | bug | `setupGame` 改用 immutable 模式 |
+| c1da245 | bug | `drawTwoCards` 牌库不足时的容错 |
+| 21c87f6 | 类型+bug | GameState 新增 `removed` / `removedPublic` / `targetTokens` / `usedSpy`；`drawCard` 边界 |
+| dfbb4ef | bug | 大臣 UI 改为三槽位（最底/次底/第三底）选牌放回 |
+| 4271364 | 重构 | 统一 AI 与 Human 的 turn 流程 |
+| 4854a40 | 重构 | 大型重构：间谍奖励 / 多局制 / 目标标记 / removed 堆 等 |
+
+### 11.10 AI 行为对齐（第 4 章补充）
+
+- **强制伯爵夫人**：`mustPlayCountess` 检查 + `canPlayCard` 校验，非伯爵夫人不可出
+- **持公主**：优先出王子自指弃公主摸新牌；无王子 → 大臣换手；无大臣 → 国王交换；无国王 → 卫兵猜人；无卫兵 → 间谍（标记 usedSpy）
+- **侍女策略**：手牌 ≥ 2 且另一张 `value >= 3`（有高牌）→ 留侍女出其他；否则侍女优先出保护自己
+- **卫兵猜牌**：按公开弃牌 + removed 剩余分布权重采样，排除卫兵和已知手牌
+- **王子自指**：持公主 → 用王子弃自己
+- **男爵/国王/神父/卫兵目标**：从 `alive && !protected && id !== self` 中随机选；无候选时效果无效直接 `advanceTurn`
+- **大臣选牌**：留最强牌（含公主），其余按 `value` 升序放牌库底（最弱先放）
+- **AI 记忆**：`buildMemory(state)` 实时构建 `remaining[牌名]`，覆盖 deck + discard + removed + removedPublic + 玩家手牌
+
+### 11.11 出局处理
+
+`eliminatePlayer(state, playerId, reason, opts?)`：
+- `alive = false`，手牌全部入 `discard`（带 `playerId` 归属）
+- `handSecret`：手牌内容字符串，仅人类出局时进 `knownBy` 公开
+- `reasonSecret` / `reasonKnownBy`：可选外部补充
+- `usedSpy` 不因公主自爆 / 被王子弃而误算（出局时直接清空 `usedSpy`？— 代码现行为：出局不重置 `usedSpy`，间谍奖励判定基于本局是否唯一打出者存活）
+
+### 11.12 摸牌规则
+
+- 玩家手牌上限 2：回合开始 `if (hand.length < 2 && deck.length > 0)` 才摸
+- 摸空（`drawOne` 返回 null）→ log "牌库为空" 结束回合，`advanceTurn` 检测触发牌库耗尽流程
+- 王子指定 → 牌库空 → 走 11.2 王子附加规则
+
+### 11.13 文件结构对齐（第 8 章补充）
+
+实际多出：
+- `components/TargetLine.tsx` — 目标线动画
+- `components/GameLog.tsx` — 日志组件（含私密遮蔽）
+- `components/GameOverModal.tsx`
+- `hooks/useMediaQuery.ts` — 移动端断点判断
+- `store/gameStore.ts` — zustand store
+
+### 11.14 UI 元素
+
+第 5 章补充：
+- **GameHeader**：回合 `round·turn`、牌 `deck.length`、弃 `discard.length`、移 `removed.length`、🎯 `targetTokens`
+- **PlayerArea**：座号圆形 chip（人类=琥珀色，AI=灰色），手牌 `peekOnHover` 鼠标悬浮翻牌，已打 `usedSpy` 🕵 图标，被保护 🛡 图标，出局/存活样式
+- **TableCenter**：牌库顶（小图，倒数 3 张 removed 可 hover 翻看；`removedPublic` 强制正面），明牌区"hover 看牌"提示
+- **PriestRevealDialog**：神父翻牌弹窗（人类专属）
+- **FinalRevealDialog**：牌库耗尽亮牌弹窗（全局 + 胜者高亮）
+- **ChancellorDialog**：三槽位选牌放回 UI
+- **GuardGuessDialog**：卫兵猜牌 9 选 1
+- **目标线**：详见 11.6
